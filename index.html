@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>福岡旅人 V2</title>
+    
+    <!-- PWA 設定 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#f8fafc">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/color/180/fukuoka.png">
+
+    <!-- 函式庫 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto+Mono:wght@500&display=swap" rel="stylesheet">
+    <!-- SortableJS (拖曳功能) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', -apple-system, sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none; /* 防止 iOS 下拉重整干擾拖曳 */
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.5);
+        }
+
+        /* 拖曳時的樣式 */
+        .sortable-ghost { opacity: 0.3; background: #e2e8f0; }
+        .sortable-drag { background: white; transform: scale(1.02); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+
+        /* 米色編輯卡片樣式 */
+        .warm-card { background-color: #fffbeb; } /* amber-50 */
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- 1. 固定頂部資訊列 (天氣 + 時間) -->
+    <header class="glass z-40 px-4 pt-safe-top pb-3 flex-none">
+        <div class="max-w-md mx-auto flex justify-between items-center mt-2">
+            <div>
+                <h1 class="text-lg font-bold text-slate-900 leading-none">FUKUOKA</h1>
+                <div class="text-xs text-slate-500 mt-1 flex gap-2">
+                    <span id="current-time" class="font-mono">--:--</span>
+                    <span>|</span>
+                    <span id="weather-text">天氣讀取中...</span>
+                </div>
+            </div>
+            <div id="weather-icon" class="text-2xl text-slate-400">
+                <i class="fas fa-cloud"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. 主要內容區 (可滾動) -->
+    <main id="main-container" class="flex-1 overflow-y-auto no-scrollbar pb-24 relative">
+        <div class="max-w-md mx-auto min-h-full bg-slate-50">
+            
+            <!-- 分頁 A: 行程列表 -->
+            <div id="view-itinerary" class="p-4 space-y-6">
+                <!-- Javascript 將在此渲染每一天的行程 -->
+            </div>
+
+            <!-- 分頁 B: 分帳計算 -->
+            <div id="view-expense" class="p-4 hidden">
+                <!-- 概況卡片 -->
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-lg mb-6">
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <p class="text-slate-400 text-xs uppercase tracking-wider">總支出 (TWD)</p>
+                            <h2 class="text-3xl font-bold font-mono" id="total-twd">NT$ 0</h2>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-slate-400 text-xs">目前匯率</p>
+                            <p class="font-mono font-bold" id="display-rate">0.22</p>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-slate-700/50">
+                        <p class="text-xs text-slate-400 mb-2">結算建議：</p>
+                        <div id="settlement-list" class="space-y-1 text-sm font-mono text-yellow-400">
+                            <!-- 結算邏輯渲染處 -->
+                            尚無資料
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 記帳列表 -->
+                <div class="flex justify-between items-center mb-3 px-1">
+                    <h3 class="font-bold text-slate-700">支出紀錄</h3>
+                    <button onclick="openSettings()" class="text-xs text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full">
+                        <i class="fas fa-cog mr-1"></i>設定旅伴
+                    </button>
+                </div>
+                <div id="expense-list" class="space-y-3 pb-20">
+                    <!-- 支出項目 -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 3. 底部導覽列 -->
+    <nav class="fixed bottom-0 w-full glass z-40 border-t border-slate-200 pb-safe-bottom">
+        <div class="max-w-md mx-auto flex justify-around items-center h-16">
+            <button onclick="switchTab('itinerary')" id="tab-itinerary" class="flex-1 flex flex-col items-center justify-center text-blue-600 transition-colors">
+                <i class="fas fa-map-marked-alt text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">行程</span>
+            </button>
+            
+            <!-- 中間的大按鈕 (新增) -->
+            <div class="relative -top-5">
+                <button onclick="handleMainAction()" class="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center text-2xl active:scale-95 transition-transform">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+
+            <button onclick="switchTab('expense')" id="tab-expense" class="flex-1 flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 transition-colors">
+                <i class="fas fa-calculator text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">分帳</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ================= MODALS (彈出視窗) ================= -->
+
+    <!-- Modal: 編輯/新增行程 (米色暖調) -->
+    <div id="modal-itinerary" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onclick="closeModal('modal-itinerary')"></div>
+        <div class="absolute bottom-0 w-full md:max-w-md md:left-1/2 md:-translate-x-1/2 bg-[#fffbeb] rounded-t-3xl shadow-2xl transform transition-transform duration-300 translate-y-full flex flex-col max-h-[90vh]" id="modal-content-itinerary">
+            
+            <div class="p-6 overflow-y-auto no-scrollbar">
+                <div class="w-12 h-1.5 bg-amber-200 rounded-full mx-auto mb-6"></div>
+                <h2 class="text-xl font-bold text-amber-900 mb-6 flex items-center gap-2">
+                    <i class="fas fa-pen-nib text-amber-600"></i>
+                    <span id="modal-title">編輯行程</span>
+                </h2>
+
+                <form id="form-itinerary" class="space-y-4">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Day</label>
+                            <select id="inp-day" class="w-full p-3 bg-white border-0 rounded-xl shadow-sm text-amber-900 font-bold focus:ring-2 focus:ring-amber-400 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Time</label>
+                            <input type="time" id="inp-time" class="w-full p-3 bg-white border-0 rounded-xl shadow-sm text-amber-900 font-bold focus:ring-2 focus:ring-amber-400 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Category</label>
+                        <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                            <!-- 透過 JS 產生類別按鈕 -->
+                            <div id="category-selector" class="flex gap-2"></div>
+                            <input type="hidden" id="inp-category" value="spot">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Title</label>
+                        <input type="text" id="inp-title" placeholder="景點名稱" class="w-full p-3 bg-white border-0 rounded-xl shadow-sm text-amber-900 placeholder-amber-900/30 focus:ring-2 focus:ring-amber-400 outline-none font-bold text-lg">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Map Link</label>
+                        <div class="relative">
+                            <i class="fas fa-link absolute left-3 top-3.5 text-amber-400"></i>
+                            <input type="url" id="inp-map" placeholder="貼上 Google Maps 網址" class="w-full pl-10 p-3 bg-white border-0 rounded-xl shadow-sm text-amber-900 text-sm focus:ring-2 focus:ring-amber-400 outline-none">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-amber-800/60 mb-1 uppercase">Notes</label>
+                        <textarea id="inp-note" rows="3" placeholder="備註、必吃..." class="w-full p-3 bg-white border-0 rounded-xl shadow-sm text-amber-900 text-sm focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
+                    </div>
+
+                    <!-- 底部按鈕區 -->
+                    <div class="pt-4 flex gap-3">
+                        <button type="button" onclick="deleteItinerary()" id="btn-delete-itin" class="px-4 py-3 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 hidden">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button type="button" onclick="saveItinerary()" class="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/30 hover:bg-amber-600 active:scale-95 transition-all">
+                            儲存行程
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 新增支出 -->
+    <div id="modal-expense" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('modal-expense')"></div>
+        <div class="absolute bottom-0 w-full md:max-w-md md:left-1/2 md:-translate-x-1/2 bg-white rounded-t-3xl shadow-2xl p-6 transform transition-transform duration-300 translate-y-full" id="modal-content-expense">
+            <h2 class="text-xl font-bold mb-4">記一筆</h2>
+            <form class="space-y-4">
+                <div class="flex gap-4">
+                    <div class="w-1/3">
+                        <label class="block text-xs text-slate-500 mb-1">付款人</label>
+                        <select id="exp-payer" class="w-full p-3 bg-slate-100 rounded-xl"></select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs text-slate-500 mb-1">金額 (JPY)</label>
+                        <input type="number" id="exp-amount" placeholder="¥" class="w-full p-3 bg-slate-100 rounded-xl font-mono font-bold text-lg">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1">項目說明</label>
+                    <input type="text" id="exp-desc" placeholder="例如：便利商店" class="w-full p-3 bg-slate-100 rounded-xl">
+                </div>
+                <button type="button" onclick="saveExpense()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold mt-2 shadow-lg">確認記帳</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: 設定與分享 -->
+    <div id="modal-settings" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal('modal-settings')"></div>
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 relative z-10 shadow-2xl">
+            <h3 class="font-bold text-lg mb-4">旅程設定</h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">旅伴名單 (逗號分隔)</label>
+                    <input type="text" id="set-companions" class="w-full p-2 border rounded-lg bg-slate-50" value="我, 旅伴A">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">匯率 (JPY -> TWD)</label>
+                    <input type="number" step="0.001" id="set-rate" class="w-full p-2 border rounded-lg bg-slate-50" value="0.22">
+                </div>
+                
+                <hr class="border-slate-100 my-2">
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">資料同步 (分享代碼)</label>
+                    <div class="flex gap-2">
+                        <button onclick="exportData()" class="flex-1 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-bold">
+                            <i class="fas fa-copy mr-1"></i>複製代碼
+                        </button>
+                        <button onclick="importData()" class="flex-1 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-bold">
+                            <i class="fas fa-file-import mr-1"></i>匯入代碼
+                        </button>
+                    </div>
+                    <textarea id="import-area" rows="2" placeholder="在此貼上代碼以匯入..." class="w-full mt-2 p-2 text-xs bg-slate-50 border rounded-lg hidden"></textarea>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="saveSettings()" class="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm">儲存並關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Javascript 邏輯 -->
+    <script>
+        // --- 1. 資料結構與狀態 ---
+        const defaultData = {
+            days: ["Day 1", "Day 2", "Day 3", "Day 4", "Day 5", "Day 6"],
+            items: [
+                { id: 101, day: "Day 1", time: "10:00", category: "transport", title: "抵達福岡機場", url: "", note: "搭地鐵至博多車站" },
+                { id: 102, day: "Day 1", time: "12:00", category: "food", title: "博多車站午餐", url: "https://goo.gl/maps/example", note: "AMU Plaza" },
+                { id: 103, day: "Day 1", time: "19:00", category: "food", title: "中洲屋台街", url: "", note: "體驗氣氛" }
+            ],
+            expenses: [],
+            settings: {
+                companions: ["我", "旅伴A"],
+                rate: 0.22
+            }
+        };
+
+        let appData = JSON.parse(localStorage.getItem('fukuoka_v2')) || defaultData;
+        let currentTab = 'itinerary';
+
+        // --- 2. 初始化與工具函式 ---
+        function init() {
+            renderItinerary();
+            renderExpenses();
+            updateWeather();
+            startClock();
+            
+            // 監聽 Modal 拖曳關閉效果 (簡單實作)
+            // 省略細節，專注於 Sortable
+        }
+
+        function saveData() {
+            localStorage.setItem('fukuoka_v2', JSON.stringify(appData));
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('view-itinerary').classList.toggle('hidden', tab !== 'itinerary');
+            document.getElementById('view-expense').classList.toggle('hidden', tab !== 'expense');
+            
+            // 更新底部按鈕狀態
+            const tabs = ['itinerary', 'expense'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tab) {
+                    btn.classList.remove('text-slate-400');
+                    btn.classList.add('text-blue-600');
+                } else {
+                    btn.classList.add('text-slate-400');
+                    btn.classList.remove('text-blue-600');
+                }
+            });
+        }
+
+        function handleMainAction() {
+            if (currentTab === 'itinerary') {
+                openItineraryModal(); // 新增模式
+            } else {
+                openExpenseModal();
+            }
+        }
+
+        // --- 3. 行程功能 (Itinerary) ---
+        
+        // 類別設定
+        const categories = {
+            transport: { icon: 'fa-train', label: '交通', color: 'bg-blue-100 text-blue-600' },
+            spot: { icon: 'fa-camera', label: '景點', color: 'bg-green-100 text-green-600' },
+            food: { icon: 'fa-utensils', label: '美食', color: 'bg-orange-100 text-orange-600' },
+            hotel: { icon: 'fa-bed', label: '住宿', color: 'bg-purple-100 text-purple-600' },
+            shopping: { icon: 'fa-shopping-bag', label: '購物', color: 'bg-pink-100 text-pink-600' }
+        };
+
+        function renderItinerary() {
+            const container = document.getElementById('view-itinerary');
+            container.innerHTML = '';
+
+            appData.days.forEach(day => {
+                // 建立該日期的容器
+                const daySection = document.createElement('div');
+                daySection.className = 'mb-2';
+                
+                // 日期標題
+                daySection.innerHTML = `
+                    <div class="sticky top-0 z-10 py-2 mb-2 bg-[#f8fafc]/95 backdrop-blur-sm flex items-center">
+                        <span class="px-3 py-1 bg-slate-200 rounded-full text-xs font-bold text-slate-700 uppercase tracking-wider shadow-sm">${day}</span>
+                        <div class="h-px bg-slate-200 flex-1 ml-3"></div>
+                    </div>
+                `;
+
+                // 該日期的行程列表容器 (給 Sortable 用)
+                const listEl = document.createElement('div');
+                listEl.className = 'space-y-3 min-h-[50px]'; // min-h 確保空的時候也能拖進去
+                listEl.dataset.day = day;
+
+                // 篩選並排序項目 (依使用者拖曳後的順序，這裡假設 array 順序即為顯示順序)
+                const dayItems = appData.items.filter(i => i.day === day);
+                
+                dayItems.forEach(item => {
+                    const card = document.createElement('div');
+                    card.dataset.id = item.id;
+                    card.className = 'bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4 items-start active:scale-[0.98] transition-all cursor-pointer group relative';
+                    
+                    // 根據類別取得樣式
+                    const cat = categories[item.category] || categories.spot;
+
+                    card.innerHTML = `
+                        <!-- 左側：時間與軸線 -->
+                        <div class="flex flex-col items-center w-12 pt-1">
+                            <span class="text-sm font-bold font-mono text-slate-600">${item.time}</span>
+                            <div class="w-8 h-8 mt-2 rounded-full ${cat.color} flex items-center justify-center text-xs shadow-inner">
+                                <i class="fas ${cat.icon}"></i>
+                            </div>
+                            <div class="w-0.5 flex-1 bg-slate-100 mt-2 rounded-full group-last:bg-transparent"></div>
+                        </div>
+
+                        <!-- 右側：內容 -->
+                        <div class="flex-1 pb-2" onclick="openItineraryModal(${item.id})">
+                            <h3 class="font-bold text-slate-800 text-lg leading-tight mb-1">${item.title}</h3>
+                            ${item.note ? `<p class="text-xs text-slate-400 line-clamp-2 mb-2">${item.note}</p>` : ''}
+                            
+                            <!-- 功能標籤列 -->
+                            <div class="flex gap-2 mt-1">
+                                ${item.url ? `
+                                    <button onclick="openMap(event, '${item.url}')" class="px-2 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 shadow-sm flex items-center gap-1 active:bg-slate-50">
+                                        <i class="fas fa-location-dot text-red-500"></i> 地圖
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- 拖曳手把提示 (視覺用) -->
+                        <div class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-200 opacity-0 group-hover:opacity-100">
+                            <i class="fas fa-grip-vertical"></i>
+                        </div>
+                    `;
+                    listEl.appendChild(card);
+                });
+
+                daySection.appendChild(listEl);
+                container.appendChild(daySection);
+
+                // 綁定 SortableJS
+                new Sortable(listEl, {
+                    group: 'itinerary', // 允許跨天拖曳
+                    animation: 150,
+                    delay: 200, // 長按 200ms 觸發拖曳
+                    delayOnTouchOnly: true,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    onEnd: function (evt) {
+                        handleSortEnd(evt);
+                    }
+                });
+            });
+            
+            // 底部墊高
+            container.innerHTML += '<div class="h-20"></div>';
+        }
+
+        // 處理拖曳結束後的資料更新
+        function handleSortEnd(evt) {
+            const itemId = parseInt(evt.item.dataset.id);
+            const newDay = evt.to.dataset.day;
+            const newIndex = evt.newIndex;
+            
+            // 1. 從原陣列移除該項目
+            const itemIndex = appData.items.findIndex(i => i.id === itemId);
+            const item = appData.items.splice(itemIndex, 1)[0];
+
+            // 2. 更新項目的 Day
+            item.day = newDay;
+
+            // 3. 找出目標 Day 在陣列中的項目們，以便插入正確位置
+            // 這邊邏輯比較複雜，為了簡化，我們先過濾出非目標 Day 的項目
+            const otherDayItems = appData.items.filter(i => i.day !== newDay);
+            
+            // 取得目標 Day 目前所有的項目 (DOM順序已經是新的了，但我們需要資料層面的參照)
+            // 更簡單的方法：重新讀取整個 DOM 的 ID順序來重建 Array
+            rebuildArrayFromDOM();
+        }
+
+        function rebuildArrayFromDOM() {
+            const newItems = [];
+            const dayLists = document.querySelectorAll('[data-day]');
+            
+            dayLists.forEach(list => {
+                const day = list.dataset.day;
+                const cards = list.querySelectorAll('[data-id]');
+                cards.forEach(card => {
+                    const id = parseInt(card.dataset.id);
+                    const originalItem = appData.items.find(i => i.id === id) 
+                                      || appData.items.find(i => i.id === id); // fallback
+                    // 我們需要保留原始資料，但更新 day (如果是跨日拖曳)
+                    if(originalItem) {
+                        originalItem.day = day;
+                        newItems.push(originalItem);
+                    }
+                });
+            });
+            
+            // 如果有尚未顯示在 DOM 的項目 (理論上不該發生)，補回去
+            // 這裡假設 DOM 完整反映了資料
+            appData.items = newItems;
+            saveData();
+            // 不用 render，因為 DOM 已經改變了，除非需要重整時間排序
+        }
+
+        function openMap(e, url) {
+            e.stopPropagation(); // 防止觸發編輯 Modal
+            window.open(url, '_blank');
+        }
+
+        // --- 4. 編輯與新增行程 Modal ---
+        let editingId = null;
+
+        function openItineraryModal(id = null) {
+            editingId = id;
+            const modal = document.getElementById('modal-itinerary');
+            const content = document.getElementById('modal-content-itinerary');
+            
+            // 填充選單
+            const daySelect = document.getElementById('inp-day');
+            daySelect.innerHTML = appData.days.map(d => `<option value="${d}">${d}</option>`).join('');
+            
+            // 產生類別按鈕
+            const catContainer = document.getElementById('category-selector');
+            catContainer.innerHTML = Object.entries(categories).map(([key, val]) => `
+                <button type="button" onclick="selectCategory('${key}')" class="cat-btn flex-none px-4 py-2 rounded-lg border border-amber-200 text-xs font-bold text-amber-800 ${key === 'spot' ? 'bg-amber-200' : 'bg-white'}" data-val="${key}">
+                    <i class="fas ${val.icon} mr-1"></i>${val.label}
+                </button>
+            `).join('');
+
+            // 填充資料
+            if (id) {
+                const item = appData.items.find(i => i.id === id);
+                document.getElementById('modal-title').innerText = '編輯行程';
+                document.getElementById('btn-delete-itin').classList.remove('hidden');
+                
+                document.getElementById('inp-day').value = item.day;
+                document.getElementById('inp-time').value = item.time;
+                document.getElementById('inp-title').value = item.title;
+                document.getElementById('inp-map').value = item.url || '';
+                document.getElementById('inp-note').value = item.note || '';
+                selectCategory(item.category);
+            } else {
+                document.getElementById('modal-title').innerText = '新增行程';
+                document.getElementById('btn-delete-itin').classList.add('hidden');
+                document.getElementById('form-itinerary').reset();
+                document.getElementById('inp-time').value = "10:00";
+                selectCategory('spot');
+            }
+
+            modal.classList.remove('hidden');
+            setTimeout(() => content.classList.remove('translate-y-full'), 10);
+        }
+
+        function selectCategory(cat) {
+            document.getElementById('inp-category').value = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                if(btn.dataset.val === cat) {
+                    btn.classList.add('bg-amber-200');
+                    btn.classList.remove('bg-white');
+                } else {
+                    btn.classList.add('bg-white');
+                    btn.classList.remove('bg-amber-200');
+                }
+            });
+        }
+
+        function saveItinerary() {
+            const day = document.getElementById('inp-day').value;
+            const time = document.getElementById('inp-time').value;
+            const category = document.getElementById('inp-category').value;
+            const title = document.getElementById('inp-title').value;
+            const url = document.getElementById('inp-map').value;
+            const note = document.getElementById('inp-note').value;
+
+            if (!title) return alert('請輸入標題');
+
+            if (editingId) {
+                const index = appData.items.findIndex(i => i.id === editingId);
+                appData.items[index] = { ...appData.items[index], day, time, category, title, url, note };
+            } else {
+                appData.items.push({
+                    id: Date.now(),
+                    day, time, category, title, url, note
+                });
+            }
+
+            saveData();
+            closeModal('modal-itinerary');
+            renderItinerary();
+        }
+
+        function deleteItinerary() {
+            if(confirm('確定刪除此行程？')) {
+                appData.items = appData.items.filter(i => i.id !== editingId);
+                saveData();
+                closeModal('modal-itinerary');
+                renderItinerary();
+            }
+        }
+
+        // --- 5. 分帳功能 (Expense) ---
+        function openExpenseModal() {
+            const modal = document.getElementById('modal-expense');
+            const content = document.getElementById('modal-content-expense');
+            const payerSelect = document.getElementById('exp-payer');
+            
+            payerSelect.innerHTML = appData.settings.companions.map(p => `<option value="${p}">${p}</option>`).join('');
+            document.getElementById('exp-amount').value = '';
+            document.getElementById('exp-desc').value = '';
+
+            modal.classList.remove('hidden');
+            setTimeout(() => content.classList.remove('translate-y-full'), 10);
+        }
+
+        function saveExpense() {
+            const payer = document.getElementById('exp-payer').value;
+            const amount = parseInt(document.getElementById('exp-amount').value);
+            const desc = document.getElementById('exp-desc').value;
+
+            if (!amount) return alert('請輸入金額');
+
+            appData.expenses.push({
+                id: Date.now(),
+                date: new Date().toLocaleDateString(),
+                payer, amount, desc
+            });
+
+            saveData();
+            closeModal('modal-expense');
+            renderExpenses();
+        }
+
+        function renderExpenses() {
+            const list = document.getElementById('expense-list');
+            const totalTwdEl = document.getElementById('total-twd');
+            const settlementEl = document.getElementById('settlement-list');
+            const rate = appData.settings.rate;
+
+            document.getElementById('display-rate').innerText = rate;
+
+            // 1. 渲染列表
+            list.innerHTML = '';
+            let totalJpy = 0;
+            const balances = {}; 
+            // 初始化餘額
+            appData.settings.companions.forEach(c => balances[c] = 0);
+
+            [...appData.expenses].reverse().forEach(exp => {
+                const twd = Math.round(exp.amount * rate);
+                totalJpy += exp.amount;
+                
+                // 計算：付款人 +Total，所有人 -Share
+                balances[exp.payer] += twd;
+                const share = twd / appData.settings.companions.length;
+                appData.settings.companions.forEach(c => balances[c] -= share);
+
+                list.innerHTML += `
+                    <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100">
+                        <div>
+                            <div class="font-bold text-slate-800">${exp.desc || '未分類'}</div>
+                            <div class="text-xs text-slate-400">
+                                <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold mr-1">${exp.payer}</span>
+                                先付 ¥${exp.amount}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold font-mono text-slate-800">NT$ ${twd}</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            totalTwdEl.innerText = 'NT$ ' + Math.round(totalJpy * rate).toLocaleString();
+
+            // 2. 結算邏輯 (簡單版：正負相消)
+            let settlements = [];
+            const debtors = [];
+            const creditors = [];
+
+            for (const [person, amount] of Object.entries(balances)) {
+                if (amount < -1) debtors.push({ person, amount });
+                if (amount > 1) creditors.push({ person, amount });
+            }
+            
+            debtors.sort((a, b) => a.amount - b.amount); // 欠最多排前面
+            creditors.sort((a, b) => b.amount - a.amount); // 被欠最多排前面
+
+            let i = 0, j = 0;
+            while (i < debtors.length && j < creditors.length) {
+                const debt = Math.abs(debtors[i].amount);
+                const credit = creditors[j].amount;
+                const amount = Math.min(debt, credit);
+
+                settlements.push(`${debtors[i].person} 給 ${creditors[j].person} $${Math.round(amount)}`);
+
+                debtors[i].amount += amount;
+                creditors[j].amount -= amount;
+
+                if (Math.abs(debtors[i].amount) < 1) i++;
+                if (creditors[j].amount < 1) j++;
+            }
+
+            settlementEl.innerHTML = settlements.length ? settlements.join('<br>') : '目前結清';
+        }
+
+        // --- 6. 設定與分享 ---
+        function openSettings() {
+            document.getElementById('set-companions').value = appData.settings.companions.join(',');
+            document.getElementById('set-rate').value = appData.settings.rate;
+            document.getElementById('modal-settings').classList.remove('hidden');
+            document.getElementById('import-area').classList.add('hidden');
+        }
+
+        function saveSettings() {
+            const compStr = document.getElementById('set-companions').value;
+            appData.settings.companions = compStr.split(',').map(s => s.trim()).filter(s => s);
+            appData.settings.rate = parseFloat(document.getElementById('set-rate').value);
+            
+            saveData();
+            renderExpenses(); // 重算
+            closeModal('modal-settings');
+        }
+
+        function exportData() {
+            const json = JSON.stringify(appData);
+            // 使用 Base64 編碼避免亂碼，並加上前綴
+            const code = 'FUKUOKA_V2:' + btoa(unescape(encodeURIComponent(json)));
+            
+            navigator.clipboard.writeText(code).then(() => {
+                alert('代碼已複製到剪貼簿！傳給旅伴即可。');
+            });
+        }
+
+        function importData() {
+            const area = document.getElementById('import-area');
+            if(area.classList.contains('hidden')) {
+                area.classList.remove('hidden');
+                area.focus();
+                alert('請在下方貼上代碼，然後再次點擊「匯入」按鈕');
+                return;
+            }
+
+            const code = area.value.trim();
+            if (!code.startsWith('FUKUOKA_V2:')) return alert('代碼格式錯誤');
+
+            try {
+                const json = decodeURIComponent(escape(atob(code.split(':')[1])));
+                appData = JSON.parse(json);
+                saveData();
+                alert('匯入成功！頁面將重新整理。');
+                location.reload();
+            } catch (e) {
+                alert('代碼解析失敗');
+            }
+        }
+
+        // --- 共用 Modal 關閉 ---
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const content = modal.querySelector('div[class*="translate-y-full"]') || modal.querySelector('div[class*="bg-white"]');
+            
+            if (content.classList.contains('translate-y-full')) {
+                // Bottom sheet style
+                content.classList.add('translate-y-full');
+            } else {
+                // Center popup style needs simple hiding
+            }
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- 其他工具 ---
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                document.getElementById('current-time').innerText = `${hours}:${minutes}`;
+            }, 1000);
+        }
+
+        async function updateWeather() {
+            try {
+                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5904&longitude=130.4017&current_weather=true&timezone=Asia%2FTokyo');
+                const data = await res.json();
+                document.getElementById('weather-text').innerText = `${data.current_weather.temperature}°C`;
+            } catch(e) {
+                console.log('Weather error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
