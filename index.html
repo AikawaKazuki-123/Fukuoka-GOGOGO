@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>福岡旅人 V4</title>
+    <title>福岡旅人 (雲端同步版)</title>
     
     <!-- PWA 設定 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,21 +20,19 @@
 
     <style>
         /* iOS Safe Area 適配 */
-        .pt-safe-top { padding-top: env(safe-area-inset-top); }
-        .pb-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .pt-safe-top { padding-top: max(12px, env(safe-area-inset-top)); }
+        .pb-safe-bottom { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
         
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background-color: #f1f5f9;
-            overscroll-behavior-y: none; /* 防止下拉重整干擾 */
+            overscroll-behavior-y: none;
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 隱藏捲軸 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* 玻璃擬態 Header */
         .glass-header {
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
@@ -42,23 +40,39 @@
             border-bottom: 1px solid rgba(226, 232, 240, 0.8);
         }
 
-        /* Checkbox 動畫 */
         .check-anim:checked + div {
             text-decoration: line-through;
             color: #94a3b8;
+        }
+
+        /* 載入中遮罩 */
+        #loading-overlay {
+            position: fixed; inset: 0; background: #f8fafc; z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden text-slate-800">
 
-    <!-- 1. Header (固定頂部) -->
+    <!-- 載入畫面 -->
+    <div id="loading-overlay">
+        <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500 mb-4"></i>
+        <p class="text-slate-500 font-bold animate-pulse">雲端資料同步中...</p>
+    </div>
+
+    <!-- 1. Header -->
     <header class="glass-header z-30 pt-safe-top flex-none">
-        <!-- 標題列 -->
-        <div class="px-4 py-2 flex justify-between items-center h-12">
+        <div class="px-4 py-2 flex justify-between items-center h-14">
             <div>
-                <h1 class="text-lg font-bold text-slate-800 leading-tight">FUKUOKA <span class="text-blue-600">TRIP</span></h1>
-                <div class="text-[10px] text-slate-500 font-mono flex gap-2">
-                    <span id="clock">--:--</span> | <span id="weather"><i class="fas fa-spinner fa-spin"></i></span>
+                <h1 class="text-lg font-bold text-slate-800 leading-tight">FUKUOKA <span class="text-blue-600">CLOUD</span></h1>
+                <div class="text-[10px] text-slate-500 font-mono flex gap-2 items-center">
+                    <button onclick="changeRoom()" class="bg-slate-100 px-1.5 rounded hover:bg-slate-200 transition-colors">
+                        ID: <span id="room-display">...</span> <i class="fas fa-pen ml-1 text-[8px]"></i>
+                    </button>
+                    <span>|</span>
+                    <span id="clock">--:--</span>
+                    <span>|</span>
+                    <span id="weather"><i class="fas fa-spinner fa-spin"></i></span>
                 </div>
             </div>
             <button onclick="openSettings()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -68,16 +82,16 @@
 
         <!-- 滑動分頁列 -->
         <div class="flex overflow-x-auto no-scrollbar px-2 pb-0 space-x-1" id="tabs-container">
-            <!-- JS 動態生成 -->
+            <!-- JS 生成 -->
         </div>
     </header>
 
-    <!-- 2. 主要內容區 -->
+    <!-- 2. Main Content -->
     <main id="main-content" class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24 relative">
-        <!-- JS 動態渲染內容 -->
+        <!-- JS 渲染 -->
     </main>
 
-    <!-- 3. FAB (懸浮按鈕) -->
+    <!-- 3. FAB -->
     <button onclick="handleFab()" id="fab-btn" class="fixed bottom-8 right-6 w-14 h-14 bg-blue-600 text-white rounded-2xl shadow-lg shadow-blue-500/40 flex items-center justify-center text-2xl z-40 active:scale-95 transition-transform pb-safe-bottom">
         <i class="fas fa-plus"></i>
     </button>
@@ -100,7 +114,7 @@
                     <div class="flex gap-3">
                         <div class="w-1/3">
                             <label class="block text-xs font-bold text-slate-400 mb-1">時間</label>
-                            <input type="time" id="itin-time" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+                            <input type="time" id="itin-time" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none font-mono">
                         </div>
                         <div class="flex-1">
                             <label class="block text-xs font-bold text-slate-400 mb-1">分類</label>
@@ -113,18 +127,13 @@
                             </select>
                         </div>
                     </div>
-                    <div>
-                        <input type="text" id="itin-title" placeholder="標題 (例如: 熊本城)" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold">
-                    </div>
-                    <div>
-                        <input type="url" id="itin-url" placeholder="Google Maps 連結 (選填)" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none text-sm">
-                    </div>
-                    <div>
-                        <textarea id="itin-note" rows="2" placeholder="備註..." class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none text-sm"></textarea>
-                    </div>
+                    <input type="text" id="itin-title" placeholder="標題" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none font-bold">
+                    <input type="url" id="itin-url" placeholder="Google Maps 連結 (選填)" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none text-sm">
+                    <textarea id="itin-note" rows="2" placeholder="備註..." class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none text-sm"></textarea>
+                    
                     <div class="flex gap-3 pt-2">
                         <button type="button" onclick="deleteItinerary()" id="btn-del-itin" class="hidden px-4 bg-red-50 text-red-500 rounded-xl font-bold"><i class="fas fa-trash"></i></button>
-                        <button type="button" onclick="saveItinerary()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30">儲存</button>
+                        <button type="button" onclick="saveItinerary()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30">儲存變更</button>
                     </div>
                 </form>
             </div>
@@ -137,11 +146,11 @@
         <div class="absolute bottom-0 w-full bg-white rounded-t-3xl shadow-2xl transform transition-transform duration-300 translate-y-full pb-safe-bottom" id="sheet-expense">
             <div class="p-6">
                 <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
-                <h3 class="text-lg font-bold mb-4">記一筆</h3>
+                <h3 class="text-lg font-bold mb-4">記帳</h3>
                 <form class="space-y-4">
                     <div class="flex gap-3">
                         <div class="flex-1">
-                            <label class="block text-xs font-bold text-slate-400 mb-1">日期歸屬</label>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">日期</label>
                             <select id="exp-day" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 font-bold text-slate-700"></select>
                         </div>
                         <div class="flex-1">
@@ -156,22 +165,20 @@
                             <input type="number" id="exp-amount" placeholder="0" class="w-full pl-8 p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 focus:ring-2 focus:ring-yellow-500 outline-none font-mono font-bold text-xl">
                         </div>
                     </div>
-                    <div>
-                        <input type="text" id="exp-item" placeholder="項目 (例如: 拉麵)" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none">
-                    </div>
-                    <button type="button" onclick="saveExpense()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg mt-2">確認記帳</button>
+                    <input type="text" id="exp-item" placeholder="項目名稱" class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 outline-none">
+                    <button type="button" onclick="saveExpense()" class="w-full py-3 bg-slate-800 text-white rounded-xl font-bold shadow-lg mt-2">儲存</button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Modal: 待辦事項 -->
+    <!-- Modal: 待辦 -->
     <div id="modal-todo" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" onclick="closeModal('modal-todo')"></div>
         <div class="absolute bottom-0 w-full bg-white rounded-t-3xl shadow-2xl transform transition-transform duration-300 translate-y-full pb-safe-bottom" id="sheet-todo">
             <div class="p-6">
                 <h3 class="text-lg font-bold mb-4">新增待辦</h3>
-                <input type="text" id="todo-input" placeholder="要做什麼..." class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 mb-4 outline-none">
+                <input type="text" id="todo-input" placeholder="例如：預約餐廳..." class="w-full p-3 bg-slate-50 rounded-xl border-0 ring-1 ring-slate-200 mb-4 outline-none">
                 <button onclick="saveTodo()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg">新增</button>
             </div>
         </div>
@@ -191,32 +198,44 @@
                     <label class="block text-xs font-bold text-slate-500 mb-1">匯率 (JPY → TWD)</label>
                     <input type="number" step="0.001" id="set-rate" class="w-full p-2 border rounded-lg bg-slate-50">
                 </div>
-                <hr class="border-slate-100 my-2">
-                <div class="flex gap-2">
-                    <button onclick="exportData()" class="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold"><i class="fas fa-file-export mr-1"></i>備份代碼</button>
-                    <button onclick="importData()" class="flex-1 py-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold"><i class="fas fa-file-import mr-1"></i>匯入代碼</button>
-                </div>
-                <div class="flex justify-between items-center pt-2">
-                    <button onclick="resetData()" class="text-xs text-red-400">重置資料</button>
-                    <button onclick="saveSettings()" class="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm">儲存</button>
+                <div class="flex justify-between items-center pt-4 border-t border-slate-100">
+                    <button onclick="changeRoom()" class="text-xs text-blue-500 underline">切換旅遊代號</button>
+                    <button onclick="saveSettings()" class="px-4 py-2 bg-slate-800 text-white rounded-lg font-bold text-sm">儲存設定</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- JAVASCRIPT -->
-    <script>
-        // --- 設定與常數 ---
+    <!-- Firebase Logic (Module) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // --- Firebase Config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyD5W4aG9X_DfyMVN9d1dWXkib8Ddk9qR1Y",
+            authDomain: "fukuokagogogo.firebaseapp.com",
+            projectId: "fukuokagogogo",
+            storageBucket: "fukuokagogogo.firebasestorage.app",
+            messagingSenderId: "751405629922",
+            appId: "1:751405629922:web:a3ebcf616e94da7e41f9bb",
+            measurementId: "G-SL7KHLJ9KS"
+        };
+
+        // --- App Global State ---
+        let db, docRef, roomId;
+        let appData = null;
+        let currentTabId = 'todo';
+
         const CONFIG = {
-            storageKey: 'fukuoka_trip_v4',
             tabs: [
                 { id: 'todo', label: '📋 待辦', type: 'todo' },
-                { id: 'd1', label: '12/31', full: '12/31 (二)', type: 'day' },
-                { id: 'd2', label: '1/1', full: '1/1 (三)', type: 'day' },
-                { id: 'd3', label: '1/2', full: '1/2 (四)', type: 'day' },
-                { id: 'd4', label: '1/3', full: '1/3 (五)', type: 'day' },
-                { id: 'd5', label: '1/4', full: '1/4 (六)', type: 'day' },
-                { id: 'd6', label: '1/5', full: '1/5 (日)', type: 'day' },
+                { id: 'd1', label: '12/31', full: '12/31 (Day 1)', type: 'day' },
+                { id: 'd2', label: '1/1', full: '1/1 (Day 2)', type: 'day' },
+                { id: 'd3', label: '1/2', full: '1/2 (Day 3)', type: 'day' },
+                { id: 'd4', label: '1/3', full: '1/3 (Day 4)', type: 'day' },
+                { id: 'd5', label: '1/4', full: '1/4 (Day 5)', type: 'day' },
+                { id: 'd6', label: '1/5', full: '1/5 (Day 6)', type: 'day' },
                 { id: 'money', label: '💰 分帳', type: 'expense' }
             ],
             icons: {
@@ -224,247 +243,285 @@
                 food: { icon: 'fa-utensils', color: 'text-orange-500', bg: 'bg-orange-100' },
                 spot: { icon: 'fa-camera', color: 'text-green-500', bg: 'bg-green-100' },
                 shop: { icon: 'fa-shopping-bag', color: 'text-pink-500', bg: 'bg-pink-100' },
-                hotel: { icon: 'fa-bed', color: 'text-purple-500', bg: 'bg-purple-100' },
-                default: { icon: 'fa-map-pin', color: 'text-slate-500', bg: 'bg-slate-100' }
+                hotel: { icon: 'fa-bed', color: 'text-purple-500', bg: 'bg-purple-100' }
             }
         };
 
-        // --- 預設資料 (你的行程) ---
         const defaultData = {
             checklist: [
-                { id: 1, text: "預約 Cinnamoroll Cafe (1/4 傍晚)", done: false },
-                { id: 2, text: "預約租車 (1/2 09:00 取)", done: false },
-                { id: 3, text: "購買 BOSS E･ZO FUKUOKA 門票", done: false },
-                { id: 4, text: "購買 JR Pass / 預訂新幹線", done: false },
-                { id: 5, text: "確認年末年始餐廳營業時間", done: false }
+                { id: 1, text: "預約 Cinnamoroll Cafe", done: false },
+                { id: 2, text: "預約租車 (1/2 取車)", done: false },
+                { id: 3, text: "購買 JR Pass", done: false }
             ],
             itinerary: [
-                // Day 1
-                { id: 101, day: 'd1', time: '10:00', category: 'transport', title: '抵達福岡機場', note: '搭地鐵至博多 (寄行李)', url: '' },
-                { id: 102, day: 'd1', time: '12:00', category: 'food', title: '博多車站商圈', note: 'AMU PLAZA 午餐', url: '' },
-                { id: 103, day: 'd1', time: '14:00', category: 'spot', title: 'BOSS E･ZO FUKUOKA', note: '絕景三兄弟 / teamLab', url: '' },
-                { id: 104, day: 'd1', time: '17:00', category: 'spot', title: '福岡塔', note: '夕陽轉夜景', url: '' },
-                { id: 105, day: 'd1', time: '19:00', category: 'food', title: '中洲屋台街', note: '跨年氣氛', url: '' },
-                { id: 106, day: 'd1', time: '21:00', category: 'hotel', title: '博多車站附近飯店', note: 'Check-in', url: '' },
-                // Day 2
-                { id: 201, day: 'd2', time: '09:00', category: 'transport', title: '搭新幹線 (博多→熊本)', note: '', url: '' },
-                { id: 202, day: 'd2', time: '10:00', category: 'spot', title: '熊本城 & 加藤神社', note: '新年初詣', url: '' },
-                { id: 203, day: 'd2', time: '12:00', category: 'food', title: '櫻之馬場 城彩苑', note: '馬肉可樂餅、海膽可樂餅', url: '' },
-                { id: 204, day: 'd2', time: '14:00', category: 'transport', title: '搭新幹線返回博多', note: '', url: '' },
-                { id: 205, day: 'd2', time: '16:00', category: 'spot', title: '櫛田神社', note: '看巨型飾山笠', url: '' },
-                { id: 206, day: 'd2', time: '18:00', category: 'food', title: '博多市區晚餐', note: '百貨內餐廳 (牛腸鍋)', url: '' },
-                // Day 3
-                { id: 301, day: 'd3', time: '09:00', category: 'transport', title: '博多車站取車', note: '租車開始', url: '' },
+                { id: 101, day: 'd1', time: '10:00', category: 'transport', title: '抵達福岡機場', note: '搭地鐵至博多', url: '' },
+                { id: 102, day: 'd1', time: '12:00', category: 'food', title: '博多車站午餐', note: 'AMU Plaza', url: '' },
+                { id: 103, day: 'd1', time: '14:00', category: 'spot', title: 'BOSS E･ZO FUKUOKA', note: '絕景三兄弟', url: '' },
+                { id: 104, day: 'd1', time: '17:00', category: 'spot', title: '福岡塔', note: '夕陽夜景', url: '' },
+                { id: 105, day: 'd1', time: '19:00', category: 'food', title: '中洲屋台街', note: '體驗氣氛', url: '' },
+
+                { id: 201, day: 'd2', time: '09:00', category: 'transport', title: '搭新幹線往熊本', note: '', url: '' },
+                { id: 202, day: 'd2', time: '10:00', category: 'spot', title: '熊本城 & 加藤神社', note: '初詣', url: '' },
+                { id: 203, day: 'd2', time: '12:00', category: 'food', title: '櫻之馬場 城彩苑', note: '午餐', url: '' },
+                { id: 204, day: 'd2', time: '14:00', category: 'transport', title: '新幹線回博多', note: '', url: '' },
+                { id: 205, day: 'd2', time: '16:00', category: 'spot', title: '櫛田神社', note: '飾山笠', url: '' },
+                { id: 206, day: 'd2', time: '18:00', category: 'food', title: '博多牛腸鍋', note: '晚餐', url: '' },
+
+                { id: 301, day: 'd3', time: '09:00', category: 'transport', title: '博多租車', note: '取車', url: '' },
                 { id: 302, day: 'd3', time: '10:30', category: 'spot', title: '小倉城', note: '', url: '' },
-                { id: 303, day: 'd3', time: '12:00', category: 'food', title: '旦過市場 / 魚町銀天街', note: '午餐', url: '' },
-                { id: 304, day: 'd3', time: '14:00', category: 'spot', title: '門司港懷舊區', note: '舊門司稅關、藍翼吊橋', url: '' },
-                { id: 305, day: 'd3', time: '15:30', category: 'spot', title: '和布刈神社', note: '關門大橋絕景', url: '' },
-                { id: 306, day: 'd3', time: '18:00', category: 'food', title: '伽哩本舗', note: '門司港焗烤咖哩', url: '' },
-                { id: 307, day: 'd3', time: '20:00', category: 'hotel', title: '回博多或住北九州', note: '', url: '' },
-                // Day 4
-                { id: 401, day: 'd4', time: '07:30', category: 'transport', title: '開車出發', note: '前往別府', url: '' },
-                { id: 402, day: 'd4', time: '09:40', category: 'spot', title: '九州自然動物園', note: '搶 Jungle Bus 票', url: '' },
-                { id: 403, day: 'd4', time: '14:00', category: 'spot', title: '別府明礬溫泉：湯之里', note: '露天風呂', url: '' },
+                { id: 303, day: 'd3', time: '12:00', category: 'food', title: '旦過市場', note: '午餐', url: '' },
+                { id: 304, day: 'd3', time: '14:00', category: 'spot', title: '門司港懷舊區', note: '', url: '' },
+                { id: 305, day: 'd3', time: '15:30', category: 'spot', title: '和布刈神社', note: '關門大橋', url: '' },
+                { id: 306, day: 'd3', time: '18:00', category: 'food', title: '焗烤咖哩', note: '晚餐', url: '' },
+
+                { id: 401, day: 'd4', time: '07:30', category: 'transport', title: '開車往別府', note: '', url: '' },
+                { id: 402, day: 'd4', time: '09:40', category: 'spot', title: '九州自然動物園', note: 'Jungle Bus', url: '' },
+                { id: 403, day: 'd4', time: '14:00', category: 'spot', title: '明礬溫泉', note: '湯之里', url: '' },
                 { id: 404, day: 'd4', time: '15:30', category: 'food', title: '岡本屋賣店', note: '地獄蒸布丁', url: '' },
-                { id: 405, day: 'd4', time: '17:00', category: 'transport', title: '開車返回博多', note: '晚餐後還車', url: '' },
-                // Day 5
-                { id: 501, day: 'd5', time: '10:00', category: 'spot', title: '海之中道海濱公園', note: '動物之森 / 花海', url: '' },
-                { id: 502, day: 'd5', time: '17:00', category: 'spot', title: '博多運河城', note: '看噴水秀', url: '' },
-                { id: 503, day: 'd5', time: '18:00', category: 'food', title: 'Cinnamoroll Cafe', note: '⚠️ 預約制', url: '' },
-                // Day 6
-                { id: 601, day: 'd6', time: '10:00', category: 'shop', title: 'LaLaport 福岡', note: '實體鋼彈', url: '' },
-                { id: 602, day: 'd6', time: '14:00', category: 'transport', title: '前往福岡機場', note: '準備回程', url: '' }
+                { id: 405, day: 'd4', time: '17:00', category: 'transport', title: '回博多還車', note: '', url: '' },
+
+                { id: 501, day: 'd5', time: '10:00', category: 'spot', title: '海之中道', note: '動物之森', url: '' },
+                { id: 502, day: 'd5', time: '17:00', category: 'spot', title: '博多運河城', note: '噴水秀', url: '' },
+                { id: 503, day: 'd5', time: '18:00', category: 'food', title: 'Cinnamoroll Cafe', note: '預約制晚餐', url: '' },
+
+                { id: 601, day: 'd6', time: '10:00', category: 'shop', title: 'LaLaport 福岡', note: '鋼彈', url: '' },
+                { id: 602, day: 'd6', time: '14:00', category: 'transport', title: '前往福岡機場', note: '', url: '' }
             ],
             expenses: [],
             settings: { companions: ["我", "旅伴A"], rate: 0.22 }
         };
 
-        // --- 應用程式狀態 ---
-        let appData = null;
-        let currentTabId = 'todo';
-
-        // --- 初始化 ---
-        function init() {
+        // --- Init & Firebase Logic ---
+        async function initApp() {
             try {
-                const stored = localStorage.getItem(CONFIG.storageKey);
-                appData = stored ? JSON.parse(stored) : JSON.parse(JSON.stringify(defaultData));
-                if (!appData.itinerary) throw new Error("Data structure invalid");
+                // 1. Init Firebase
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+
+                // 2. Room Logic
+                roomId = localStorage.getItem('fukuoka_room_id');
+                if (!roomId) {
+                    roomId = prompt("請輸入旅遊代號 (Room ID)\n例如: Fukuoka2025");
+                    if (!roomId) roomId = "demo"; 
+                    localStorage.setItem('fukuoka_room_id', roomId);
+                }
+                document.getElementById('room-display').innerText = roomId;
+
+                // 3. Connect Firestore
+                docRef = doc(db, "trips", roomId);
+                
+                // Real-time listener
+                onSnapshot(docRef, (docSnap) => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    if (docSnap.exists()) {
+                        appData = docSnap.data();
+                        renderContent(); // 資料更新即重繪
+                    } else {
+                        // First time: Write default data
+                        setDoc(docRef, defaultData);
+                    }
+                }, (error) => {
+                    alert("連線錯誤: " + error.message);
+                });
+
+                renderTabs();
+                switchTab('todo'); // Render initial tab structure
+                startClock();
+                fetchWeather();
+
             } catch (e) {
-                console.warn("Resetting data due to error:", e);
-                appData = JSON.parse(JSON.stringify(defaultData));
-                saveData();
+                console.error(e);
+                alert("初始化失敗，請檢查網路");
             }
-
-            renderTabs();
-            switchTab(CONFIG.tabs[0].id); // 預設開啟第一個分頁
-            startClock();
-            fetchWeather();
         }
 
-        function saveData() {
-            localStorage.setItem(CONFIG.storageKey, JSON.stringify(appData));
+        // --- Core Functions ---
+        async function syncData() {
+            if (!docRef || !appData) return;
+            try {
+                await updateDoc(docRef, appData);
+            } catch (e) {
+                console.error("Sync failed", e);
+            }
         }
 
-        // --- 渲染：分頁 (Tabs) ---
+        window.changeRoom = () => {
+            localStorage.removeItem('fukuoka_room_id');
+            location.reload();
+        };
+
+        // --- UI Rendering ---
         function renderTabs() {
             const container = document.getElementById('tabs-container');
             container.innerHTML = CONFIG.tabs.map(tab => `
-                <button onclick="switchTab('${tab.id}')" 
-                    class="tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 border-transparent outline-none ${tab.id === 'money' ? 'text-yellow-600' : 'text-slate-400'}" 
+                <button onclick="window.switchTab('${tab.id}')" 
+                    class="tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 border-transparent outline-none text-slate-400" 
                     data-id="${tab.id}">
                     ${tab.label}
                 </button>
             `).join('');
         }
 
-        function switchTab(id) {
+        window.switchTab = (id) => {
             currentTabId = id;
-            
-            // 更新 Tab 樣式
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 const isActive = btn.dataset.id === id;
                 if(isActive) {
-                   btn.className = `tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 outline-none ${id === 'money' ? 'border-yellow-500 text-yellow-700 bg-yellow-50/50' : 'border-blue-600 text-blue-600 bg-blue-50/50'}`;
-                   btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    btn.className = `tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 outline-none ${id==='money'?'border-yellow-500 text-yellow-700 bg-yellow-50/50':'border-blue-600 text-blue-600 bg-blue-50/50'}`;
+                    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                 } else {
-                   btn.className = `tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 border-transparent text-slate-400 outline-none`;
+                    btn.className = `tab-btn flex-none px-4 py-3 text-sm font-bold transition-all border-b-2 border-transparent text-slate-400 outline-none`;
                 }
             });
-
-            // 更新 FAB 樣式
-            const fab = document.getElementById('fab-btn');
-            if (id === 'money') {
-                fab.className = fab.className.replace('bg-blue-600', 'bg-slate-800').replace('shadow-blue-500/40', 'shadow-slate-500/40');
-            } else {
-                fab.className = fab.className.replace('bg-slate-800', 'bg-blue-600').replace('shadow-slate-500/40', 'shadow-blue-500/40');
-            }
-
-            // 渲染內容
-            renderContent();
-        }
-
-        // --- 渲染：主內容 ---
-        function renderContent() {
-            const container = document.getElementById('main-content');
-            const tabConfig = CONFIG.tabs.find(t => t.id === currentTabId);
-            container.innerHTML = `<div class="h-2"></div>`; // Spacer
-
-            if (tabConfig.type === 'todo') {
-                renderChecklist(container);
-            } else if (tabConfig.type === 'expense') {
-                renderExpense(container);
-            } else {
-                renderItinerary(container, currentTabId);
-            }
-        }
-
-        // --- 模組：待辦清單 (Checklist) ---
-        function renderChecklist(container) {
-            if (appData.checklist.length === 0) {
-                container.innerHTML += `<div class="text-center text-slate-400 mt-10">無待辦事項</div>`;
-                return;
-            }
             
+            const fab = document.getElementById('fab-btn');
+            if(id === 'money') fab.className = fab.className.replace('bg-blue-600', 'bg-slate-800').replace('shadow-blue-500/40', 'shadow-slate-500/40');
+            else fab.className = fab.className.replace('bg-slate-800', 'bg-blue-600').replace('shadow-slate-500/40', 'shadow-blue-500/40');
+
+            renderContent();
+        };
+
+        function renderContent() {
+            if (!appData) return;
+            const container = document.getElementById('main-content');
+            const tab = CONFIG.tabs.find(t => t.id === currentTabId);
+            container.innerHTML = `<div class="h-2"></div>`;
+
+            if (tab.type === 'todo') renderTodo(container);
+            else if (tab.type === 'expense') renderExpense(container);
+            else renderItinerary(container, tab);
+        }
+
+        // --- Module: Todo ---
+        function renderTodo(container) {
             const list = document.createElement('div');
             list.className = 'space-y-3';
-            
             appData.checklist.forEach(item => {
                 const row = document.createElement('label');
                 row.className = 'flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-100 cursor-pointer active:scale-[0.99] transition-transform';
                 row.innerHTML = `
                     <input type="checkbox" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 check-anim" 
-                        ${item.done ? 'checked' : ''} onchange="toggleTodo(${item.id})">
+                        ${item.done ? 'checked' : ''} onchange="window.toggleTodo(${item.id})">
                     <div class="ml-3 flex-1 text-slate-700 font-medium ${item.done ? 'line-through text-slate-400' : ''}">${item.text}</div>
-                    <button onclick="deleteTodo(event, ${item.id})" class="text-slate-300 hover:text-red-400 px-2"><i class="fas fa-times"></i></button>
+                    <button onclick="window.deleteTodo(event, ${item.id})" class="text-slate-300 hover:text-red-400 px-2"><i class="fas fa-times"></i></button>
                 `;
                 list.appendChild(row);
             });
             container.appendChild(list);
         }
 
-        function toggleTodo(id) {
+        window.toggleTodo = (id) => {
             const item = appData.checklist.find(i => i.id === id);
-            if (item) {
-                item.done = !item.done;
-                saveData();
-                renderContent(); // 重新渲染以更新樣式
-            }
-        }
+            if(item) { item.done = !item.done; syncData(); }
+        };
 
-        function saveTodo() {
-            const input = document.getElementById('todo-input');
-            if (input.value.trim()) {
-                appData.checklist.push({ id: Date.now(), text: input.value, done: false });
-                saveData();
-                input.value = '';
+        window.saveTodo = () => {
+            const val = document.getElementById('todo-input').value;
+            if(val) {
+                appData.checklist.push({ id: Date.now(), text: val, done: false });
+                syncData();
+                document.getElementById('todo-input').value = '';
                 closeModal('modal-todo');
-                renderContent();
             }
-        }
+        };
 
-        function deleteTodo(e, id) {
+        window.deleteTodo = (e, id) => {
             e.preventDefault();
-            if(confirm('刪除此項目？')) {
+            if(confirm('刪除?')) {
                 appData.checklist = appData.checklist.filter(i => i.id !== id);
-                saveData();
-                renderContent();
+                syncData();
             }
-        }
+        };
 
-        // --- 模組：行程 (Itinerary) ---
-        function renderItinerary(container, dayId) {
-            const items = appData.itinerary
-                .filter(i => i.day === dayId)
-                .sort((a, b) => a.time.localeCompare(b.time));
-
-            // 顯示該日期的完整標題
-            const dayLabel = CONFIG.tabs.find(t => t.id === dayId).full;
+        // --- Module: Itinerary ---
+        function renderItinerary(container, tab) {
+            const items = appData.itinerary.filter(i => i.day === tab.id).sort((a,b) => a.time.localeCompare(b.time));
+            
             container.innerHTML += `
                 <div class="sticky top-0 z-10 bg-[#f1f5f9]/95 backdrop-blur py-2 mb-2 flex items-center">
-                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-200 px-2 py-1 rounded">${dayLabel}</span>
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-200 px-2 py-1 rounded">${tab.full}</span>
                     <div class="h-px bg-slate-200 flex-1 ml-3"></div>
-                </div>
-            `;
+                </div>`;
 
             if (items.length === 0) {
-                container.innerHTML += `<div class="text-center text-slate-300 mt-10"><i class="fas fa-wind text-4xl mb-2"></i><br>尚無行程</div>`;
+                container.innerHTML += `<div class="text-center text-slate-300 mt-10">無行程</div>`;
                 return;
             }
 
             items.forEach(item => {
-                const style = CONFIG.icons[item.category] || CONFIG.icons.default;
-                
+                const style = CONFIG.icons[item.category] || CONFIG.icons.spot;
                 const card = document.createElement('div');
                 card.className = 'bg-white rounded-xl p-4 mb-3 shadow-sm border border-slate-100 flex gap-4 relative group active:scale-[0.98] transition-transform';
-                card.onclick = (e) => {
-                    if(!e.target.closest('button')) openItineraryModal(item.id);
-                };
-
+                card.onclick = (e) => { if(!e.target.closest('button')) window.openItineraryModal(item.id); };
                 card.innerHTML = `
                     <div class="flex flex-col items-center pt-1 w-14 border-r border-slate-50 pr-2">
                         <span class="text-sm font-bold font-mono text-slate-600">${item.time}</span>
-                        <div class="mt-2 w-8 h-8 rounded-full ${style.bg} ${style.color} flex items-center justify-center text-xs shadow-sm">
-                            <i class="fas ${style.icon}"></i>
-                        </div>
+                        <div class="mt-2 w-8 h-8 rounded-full ${style.bg} ${style.color} flex items-center justify-center text-xs shadow-sm"><i class="fas ${style.icon}"></i></div>
                     </div>
                     <div class="flex-1 min-w-0">
                         <h3 class="font-bold text-slate-800 text-lg leading-tight truncate">${item.title}</h3>
                         ${item.note ? `<p class="text-xs text-slate-400 mt-1 line-clamp-2">${item.note}</p>` : ''}
-                        
-                        ${item.url ? `
-                            <button onclick="window.open('${item.url}', '_blank')" class="mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-blue-100 transition-colors">
-                                <i class="fas fa-location-arrow"></i> 導航
-                            </button>
-                        ` : ''}
+                        ${item.url ? `<button onclick="window.open('${item.url}', '_blank')" class="mt-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-blue-100"><i class="fas fa-location-arrow"></i> 導航</button>` : ''}
                     </div>
                 `;
                 container.appendChild(card);
             });
         }
 
-        // --- 模組：分帳 (Expense) ---
+        window.openItineraryModal = (id = null) => {
+            const item = id ? appData.itinerary.find(i => i.id === id) : null;
+            document.getElementById('itin-modal-title').innerText = id ? '編輯行程' : '新增行程';
+            document.getElementById('itin-badge').innerText = CONFIG.tabs.find(t=>t.id===currentTabId).full;
+            document.getElementById('itin-id').value = id || '';
+            document.getElementById('itin-time').value = item ? item.time : '10:00';
+            document.getElementById('itin-category').value = item ? item.category : 'spot';
+            document.getElementById('itin-title').value = item ? item.title : '';
+            document.getElementById('itin-url').value = item ? (item.url || '') : '';
+            document.getElementById('itin-note').value = item ? (item.note || '') : '';
+            
+            const delBtn = document.getElementById('btn-del-itin');
+            if(id) delBtn.classList.remove('hidden'); else delBtn.classList.add('hidden');
+            
+            document.getElementById('modal-itinerary').classList.remove('hidden');
+            setTimeout(() => document.getElementById('sheet-itinerary').classList.remove('translate-y-full'), 10);
+        };
+
+        window.saveItinerary = () => {
+            const id = document.getElementById('itin-id').value;
+            const title = document.getElementById('itin-title').value;
+            if(!title) return;
+            
+            const newItem = {
+                id: id ? parseInt(id) : Date.now(),
+                day: currentTabId,
+                time: document.getElementById('itin-time').value,
+                category: document.getElementById('itin-category').value,
+                title,
+                url: document.getElementById('itin-url').value,
+                note: document.getElementById('itin-note').value
+            };
+
+            if(id) {
+                const idx = appData.itinerary.findIndex(i => i.id == id);
+                if(idx > -1) appData.itinerary[idx] = newItem;
+            } else {
+                appData.itinerary.push(newItem);
+            }
+            syncData();
+            closeModal('modal-itinerary');
+        };
+
+        window.deleteItinerary = () => {
+            const id = parseInt(document.getElementById('itin-id').value);
+            if(confirm('確定刪除?')) {
+                appData.itinerary = appData.itinerary.filter(i => i.id !== id);
+                syncData();
+                closeModal('modal-itinerary');
+            }
+        };
+
+        // --- Module: Expense ---
         function renderExpense(container) {
-            // 1. 計算
             let totalJPY = 0;
             const balances = {};
             appData.settings.companions.forEach(p => balances[p] = 0);
@@ -478,252 +535,100 @@
             });
             const totalTWD = Math.round(totalJPY * appData.settings.rate);
 
-            // 2. 結算建議算法
-            let settlements = [];
-            let debtors = [], creditors = [];
-            for (const [p, amt] of Object.entries(balances)) {
-                if (amt < -1) debtors.push({ p, amt });
-                if (amt > 1) creditors.push({ p, amt });
+            // Settlement Logic
+            let settlements = [], debtors = [], creditors = [];
+            for(const [p, amt] of Object.entries(balances)) {
+                if(amt < -1) debtors.push({p, amt});
+                if(amt > 1) creditors.push({p, amt});
             }
-            debtors.sort((a,b) => a.amt - b.amt);
-            creditors.sort((a,b) => b.amt - a.amt);
-            
+            debtors.sort((a,b)=>a.amt - b.amt); creditors.sort((a,b)=>b.amt - a.amt);
             let i=0, j=0;
-            while(i < debtors.length && j < creditors.length) {
+            while(i<debtors.length && j<creditors.length) {
                 const val = Math.min(Math.abs(debtors[i].amt), creditors[j].amt);
                 settlements.push(`${debtors[i].p} → ${creditors[j].p} : $${Math.round(val)}`);
                 debtors[i].amt += val; creditors[j].amt -= val;
-                if(Math.abs(debtors[i].amt)<1) i++;
-                if(creditors[j].amt<1) j++;
+                if(Math.abs(debtors[i].amt)<1) i++; if(creditors[j].amt<1) j++;
             }
 
-            // 3. 頂部總覽
-            const dashboard = document.createElement('div');
-            dashboard.className = 'bg-slate-800 text-white p-5 rounded-2xl shadow-lg mb-6';
-            dashboard.innerHTML = `
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <p class="text-[10px] text-slate-400 uppercase tracking-wider">總支出 (TWD)</p>
-                        <h2 class="text-3xl font-mono font-bold">NT$ ${totalTWD.toLocaleString()}</h2>
+            container.innerHTML += `
+                <div class="bg-slate-800 text-white p-5 rounded-2xl shadow-lg mb-6">
+                    <div class="flex justify-between items-end mb-4">
+                        <div><p class="text-[10px] text-slate-400 uppercase">總支出 (TWD)</p><h2 class="text-3xl font-mono font-bold">NT$ ${totalTWD.toLocaleString()}</h2></div>
+                        <div class="text-right"><p class="text-[10px] text-slate-400">匯率</p><p class="font-mono font-bold">${appData.settings.rate}</p></div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-[10px] text-slate-400">匯率</p>
-                        <p class="font-mono font-bold">${appData.settings.rate}</p>
-                    </div>
-                </div>
-                <div class="pt-3 border-t border-slate-700 space-y-1">
-                    ${settlements.length ? settlements.map(s => `<div class="text-xs font-mono text-yellow-400">${s}</div>`).join('') : '<div class="text-xs text-slate-500">目前結清</div>'}
-                </div>
-            `;
-            container.appendChild(dashboard);
+                    <div class="pt-3 border-t border-slate-700 space-y-1">${settlements.length ? settlements.map(s => `<div class="text-xs font-mono text-yellow-400">${s}</div>`).join('') : '<div class="text-xs text-slate-500">已結清</div>'}</div>
+                </div>`;
 
-            // 4. 列表
             [...appData.expenses].reverse().forEach(exp => {
-                const dayLabel = CONFIG.tabs.find(t => t.id === exp.dayId)?.label || '其他';
+                const dayLabel = CONFIG.tabs.find(t=>t.id===exp.dayId)?.label || '';
                 const row = document.createElement('div');
                 row.className = 'bg-white p-3 rounded-xl border border-slate-100 mb-2 flex justify-between items-center shadow-sm';
                 row.innerHTML = `
                     <div class="flex items-center gap-3">
-                        <div class="flex flex-col items-center w-10">
-                            <span class="text-[10px] bg-slate-100 text-slate-500 px-1 rounded font-bold">${dayLabel}</span>
-                            <div class="mt-1 w-6 h-6 rounded-full bg-slate-800 text-white text-[10px] flex items-center justify-center">${exp.payer.charAt(0)}</div>
-                        </div>
-                        <div>
-                            <div class="font-bold text-slate-800 text-sm">${exp.item}</div>
-                            <div class="text-xs text-slate-400">¥${exp.amount.toLocaleString()}</div>
-                        </div>
+                        <div class="flex flex-col items-center w-10"><span class="text-[10px] bg-slate-100 text-slate-500 px-1 rounded font-bold">${dayLabel}</span><div class="mt-1 w-6 h-6 rounded-full bg-slate-800 text-white text-[10px] flex items-center justify-center">${exp.payer.charAt(0)}</div></div>
+                        <div><div class="font-bold text-slate-800 text-sm">${exp.item}</div><div class="text-xs text-slate-400">¥${exp.amount.toLocaleString()}</div></div>
                     </div>
-                    <div class="text-right font-mono font-bold text-slate-700 text-sm">NT$${Math.round(exp.amount * appData.settings.rate)}</div>
-                `;
-                // 長按刪除
-                row.onclick = () => { if(confirm(`刪除 ${exp.item}?`)) { appData.expenses = appData.expenses.filter(x => x.id !== exp.id); saveData(); renderContent(); }};
+                    <div class="text-right font-mono font-bold text-slate-700 text-sm">NT$${Math.round(exp.amount*appData.settings.rate)}</div>`;
+                row.onclick = () => { if(confirm(`刪除 ${exp.item}?`)) { appData.expenses = appData.expenses.filter(x=>x.id!==exp.id); syncData(); } };
                 container.appendChild(row);
             });
         }
 
-        // --- 操作邏輯 ---
-        function handleFab() {
-            if (currentTabId === 'todo') {
-                document.getElementById('modal-todo').classList.remove('hidden');
-                setTimeout(() => document.getElementById('sheet-todo').classList.remove('translate-y-full'), 10);
-            } else if (currentTabId === 'money') {
-                openExpenseModal();
-            } else {
-                openItineraryModal();
-            }
-        }
-
-        function openItineraryModal(id = null) {
-            const modal = document.getElementById('modal-itinerary');
-            const sheet = document.getElementById('sheet-itinerary');
-            const currentDayTab = CONFIG.tabs.find(t => t.id === currentTabId);
-            
-            document.getElementById('itin-badge').innerText = currentDayTab.full;
-            
-            if (id) {
-                const item = appData.itinerary.find(i => i.id === id);
-                document.getElementById('itin-modal-title').innerText = "編輯行程";
-                document.getElementById('itin-id').value = id;
-                document.getElementById('itin-time').value = item.time;
-                document.getElementById('itin-category').value = item.category;
-                document.getElementById('itin-title').value = item.title;
-                document.getElementById('itin-url').value = item.url || '';
-                document.getElementById('itin-note').value = item.note || '';
-                document.getElementById('btn-del-itin').classList.remove('hidden');
-            } else {
-                document.getElementById('itin-modal-title').innerText = "新增行程";
-                document.getElementById('form-itinerary').reset();
-                document.getElementById('itin-id').value = '';
-                document.getElementById('itin-time').value = '10:00';
-                document.getElementById('btn-del-itin').classList.add('hidden');
-            }
-            
-            modal.classList.remove('hidden');
-            setTimeout(() => sheet.classList.remove('translate-y-full'), 10);
-        }
-
-        function saveItinerary() {
-            const id = document.getElementById('itin-id').value;
-            const title = document.getElementById('itin-title').value;
-            if(!title) return alert('請輸入標題');
-
-            const item = {
-                id: id ? parseInt(id) : Date.now(),
-                day: currentTabId,
-                time: document.getElementById('itin-time').value,
-                category: document.getElementById('itin-category').value,
-                title: title,
-                url: document.getElementById('itin-url').value,
-                note: document.getElementById('itin-note').value
-            };
-
-            if(id) {
-                const idx = appData.itinerary.findIndex(i => i.id == id);
-                if(idx > -1) appData.itinerary[idx] = item;
-            } else {
-                appData.itinerary.push(item);
-            }
-            saveData();
-            closeModal('modal-itinerary');
-            renderContent();
-        }
-
-        function deleteItinerary() {
-            const id = parseInt(document.getElementById('itin-id').value);
-            if(confirm('確定刪除？')) {
-                appData.itinerary = appData.itinerary.filter(i => i.id !== id);
-                saveData();
-                closeModal('modal-itinerary');
-                renderContent();
-            }
-        }
-
-        function openExpenseModal() {
-            const modal = document.getElementById('modal-expense');
-            const sheet = document.getElementById('sheet-expense');
-            
-            // Populate Days
-            const days = CONFIG.tabs.filter(t => t.type === 'day');
-            document.getElementById('exp-day').innerHTML = days.map(d => `<option value="${d.id}">${d.full}</option>`).join('');
-            
-            // Populate Payers
-            document.getElementById('exp-payer').innerHTML = appData.settings.companions.map(p => `<option value="${p}">${p}</option>`).join('');
-            
-            // Reset fields
+        window.openExpenseModal = () => {
+            const days = CONFIG.tabs.filter(t=>t.type==='day');
+            document.getElementById('exp-day').innerHTML = days.map(d=>`<option value="${d.id}">${d.full}</option>`).join('');
+            document.getElementById('exp-payer').innerHTML = appData.settings.companions.map(p=>`<option value="${p}">${p}</option>`).join('');
             document.getElementById('exp-amount').value = '';
             document.getElementById('exp-item').value = '';
-            
-            modal.classList.remove('hidden');
-            setTimeout(() => sheet.classList.remove('translate-y-full'), 10);
-        }
+            document.getElementById('modal-expense').classList.remove('hidden');
+            setTimeout(() => document.getElementById('sheet-expense').classList.remove('translate-y-full'), 10);
+        };
 
-        function saveExpense() {
+        window.saveExpense = () => {
             const amount = parseInt(document.getElementById('exp-amount').value);
             const item = document.getElementById('exp-item').value;
-            if(!amount || !item) return alert('請完整填寫');
-
-            appData.expenses.push({
-                id: Date.now(),
-                dayId: document.getElementById('exp-day').value,
-                payer: document.getElementById('exp-payer').value,
-                amount, item
-            });
-            saveData();
+            if(!amount || !item) return;
+            appData.expenses.push({ id: Date.now(), dayId: document.getElementById('exp-day').value, payer: document.getElementById('exp-payer').value, amount, item });
+            syncData();
             closeModal('modal-expense');
-            renderContent();
-        }
+        };
 
-        // --- 設定與工具 ---
-        function openSettings() {
+        // --- Settings & Utils ---
+        window.openSettings = () => {
             document.getElementById('set-companions').value = appData.settings.companions.join(',');
             document.getElementById('set-rate').value = appData.settings.rate;
             document.getElementById('modal-settings').classList.remove('hidden');
-        }
+        };
 
-        function saveSettings() {
+        window.saveSettings = () => {
             const comps = document.getElementById('set-companions').value.split(',').map(s=>s.trim()).filter(s=>s);
-            if(comps.length === 0) return alert('至少需一位旅伴');
-            appData.settings.companions = comps;
+            if(comps.length) appData.settings.companions = comps;
             appData.settings.rate = parseFloat(document.getElementById('set-rate').value);
-            saveData();
+            syncData();
             closeModal('modal-settings');
-            if(currentTabId === 'money') renderContent();
-        }
+        };
 
-        function closeModal(id) {
+        window.closeModal = (id) => {
             const modal = document.getElementById(id);
             const sheet = modal.querySelector('div[id^="sheet-"]');
             if(sheet) sheet.classList.add('translate-y-full');
             setTimeout(() => modal.classList.add('hidden'), 200);
-        }
+        };
 
-        function resetData() {
-            if(confirm('確定重置所有資料？這將無法復原。')) {
-                localStorage.removeItem(CONFIG.storageKey);
-                location.reload();
-            }
-        }
+        window.handleFab = () => {
+            if(currentTabId === 'todo') { document.getElementById('modal-todo').classList.remove('hidden'); setTimeout(()=>document.getElementById('sheet-todo').classList.remove('translate-y-full'),10); }
+            else if(currentTabId === 'money') window.openExpenseModal();
+            else window.openItineraryModal();
+        };
 
-        function exportData() {
-            const code = btoa(unescape(encodeURIComponent(JSON.stringify(appData))));
-            prompt("請複製代碼分享給旅伴：", code);
-        }
-
-        function importData() {
-            const code = prompt("請貼上代碼：");
-            if(code) {
-                try {
-                    appData = JSON.parse(decodeURIComponent(escape(atob(code))));
-                    saveData();
-                    alert('匯入成功！');
-                    location.reload();
-                } catch(e) { alert('代碼無效'); }
-            }
-        }
-
-        // --- 系統功能 ---
-        function startClock() {
-            const update = () => {
-                const now = new Date();
-                document.getElementById('clock').innerText = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-            };
-            setInterval(update, 1000);
-            update();
-        }
-
+        // System
+        function startClock() { setInterval(() => { const n = new Date(); document.getElementById('clock').innerText = `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; }, 1000); }
         async function fetchWeather() {
-            try {
-                // 福岡座標
-                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5904&longitude=130.4017&current_weather=true&timezone=Asia%2FTokyo');
-                const data = await res.json();
-                document.getElementById('weather').innerHTML = `${Math.round(data.current_weather.temperature)}°C`;
-            } catch {
-                document.getElementById('weather').innerText = 'N/A';
-            }
+            try { const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5904&longitude=130.4017&current_weather=true&timezone=Asia%2FTokyo'); const d = await res.json(); document.getElementById('weather').innerHTML = `${Math.round(d.current_weather.temperature)}°C`; } catch {}
         }
 
-        // 啟動
-        init();
+        // Start App
+        initApp();
     </script>
 </body>
 </html>
