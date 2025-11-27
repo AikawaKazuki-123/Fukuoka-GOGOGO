@@ -24,7 +24,7 @@
         
         body {
             font-family: 'Noto Sans TC', sans-serif;
-            overflow: hidden; /* Prevent body scroll, handle inside main */
+            overflow: hidden;
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -44,6 +44,33 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
+        /* Transport Connector Style */
+        .connector-line {
+            background: rgba(241, 245, 249, 0.9); /* slate-100 */
+            border: 1px solid rgba(203, 213, 225, 0.6); /* slate-300 */
+            position: relative;
+        }
+        .connector-line::before {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: 23px; /* Align with timeline */
+            width: 2px;
+            height: 10px;
+            background: rgba(203, 213, 225, 0.8);
+            z-index: 0;
+        }
+        .connector-line::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 23px;
+            width: 2px;
+            height: 10px;
+            background: rgba(203, 213, 225, 0.8);
+            z-index: 0;
+        }
+
         /* Scrollbar Hiding */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -51,6 +78,9 @@
         /* Animation */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        
+        @keyframes pulse-border { 0% { border-color: rgba(59, 130, 246, 0.5); } 50% { border-color: rgba(59, 130, 246, 1); box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); } 100% { border-color: rgba(59, 130, 246, 0.5); } }
+        .ai-alert { animation: pulse-border 2s infinite; }
     </style>
 </head>
 <body class="h-screen w-screen relative text-slate-800">
@@ -67,14 +97,14 @@
         <p class="text-slate-600 font-bold tracking-widest animate-pulse">SYNCING...</p>
     </div>
 
-    <!-- 1. Main Container (Glass Effect) -->
+    <!-- 1. Main Container -->
     <div class="relative z-10 h-full flex flex-col">
         
         <!-- Header Section -->
         <header class="pt-safe-top pb-2 px-4 flex-none">
             <div class="flex justify-between items-center mb-4">
                 <div>
-                    <h1 class="text-2xl font-bold text-white drop-shadow-md tracking-tight">Fukuoka <span class="font-light">Go</span></h1>
+                    <h1 class="text-2xl font-bold text-white drop-shadow-md tracking-tight">Fukuoka <span class="font-light">Pro</span></h1>
                     <button onclick="changeRoom()" class="text-[10px] text-white/80 bg-white/20 px-2 py-0.5 rounded backdrop-blur-sm hover:bg-white/30 transition">
                         ID: <span id="room-display" class="font-mono">LOADING</span> <i class="fas fa-pen ml-1"></i>
                     </button>
@@ -84,7 +114,7 @@
                 </button>
             </div>
 
-            <!-- Weather Widget (iOS Style) -->
+            <!-- Weather Widget -->
             <div id="weather-widget" class="glass-panel rounded-2xl p-3 mb-2 hidden">
                 <div class="flex items-center justify-between mb-2 px-1">
                     <div class="flex items-center gap-2">
@@ -93,21 +123,11 @@
                     </div>
                     <span class="text-xs text-slate-400" id="weather-updated">Update just now</span>
                 </div>
-                <!-- 24h Scroll -->
-                <div class="flex overflow-x-auto no-scrollbar gap-4 pb-1" id="weather-scroll">
-                    <!-- JS Injected -->
-                    <div class="flex flex-col items-center min-w-[3rem] animate-pulse">
-                        <span class="text-[10px] text-slate-400">Now</span>
-                        <div class="h-6 w-6 bg-slate-200 rounded-full my-1"></div>
-                        <span class="text-sm font-bold">--°</span>
-                    </div>
-                </div>
+                <div class="flex overflow-x-auto no-scrollbar gap-4 pb-1" id="weather-scroll"></div>
             </div>
 
             <!-- Tabs -->
-            <div class="flex overflow-x-auto no-scrollbar gap-2 pb-1" id="tabs-container">
-                <!-- JS Injected -->
-            </div>
+            <div class="flex overflow-x-auto no-scrollbar gap-2 pb-1" id="tabs-container"></div>
         </header>
 
         <!-- Main Content -->
@@ -148,56 +168,78 @@
                         <div class="flex-1">
                             <label class="text-xs font-bold text-slate-500 ml-1">分類</label>
                             <select id="itin-category" onchange="toggleCategoryFields()" class="w-full mt-1 p-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none">
-                                <option value="spot">📸 景點</option>
-                                <option value="food">🍜 美食</option>
-                                <option value="transport">✈️ 交通/飛機</option>
-                                <option value="shop">🛍️ 購物</option>
-                                <option value="hotel">🏨 住宿</option>
+                                <option value="spot">📸 景點 (Spot)</option>
+                                <option value="food">🍜 美食 (Food)</option>
+                                <option value="flight">✈️ 飛機 (Flight)</option>
+                                <option value="transport">🚆 交通 (Transport)</option>
+                                <option value="shop">🛍️ 購物 (Shop)</option>
+                                <option value="hotel">🏨 住宿 (Hotel)</option>
                             </select>
                         </div>
                     </div>
 
+                    <!-- Title / Route -->
                     <div>
-                        <label class="text-xs font-bold text-slate-500 ml-1">標題</label>
+                        <label class="text-xs font-bold text-slate-500 ml-1" id="lbl-title">標題 / 名稱</label>
                         <input type="text" id="itin-title" placeholder="地點名稱" class="w-full mt-1 p-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none font-bold text-lg">
                     </div>
 
-                    <!-- Map Code Section -->
-                    <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
-                        <label class="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1 block">Driver Info</label>
+                    <!-- Transport Fields (Connector) -->
+                    <div id="field-transport" class="hidden bg-slate-100/70 p-3 rounded-xl border border-slate-200 space-y-3">
+                        <div class="flex gap-2 items-center">
+                            <div class="flex-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase">From</label>
+                                <input type="text" id="itin-from" placeholder="出發地" class="w-full p-2 bg-white rounded-lg text-sm font-bold">
+                            </div>
+                            <i class="fas fa-arrow-right text-slate-400 mt-4"></i>
+                            <div class="flex-1">
+                                <label class="text-[10px] font-bold text-slate-400 uppercase">To</label>
+                                <input type="text" id="itin-to" placeholder="目的地" class="w-full p-2 bg-white rounded-lg text-sm font-bold">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Cost (JPY)</label>
+                            <input type="number" id="itin-cost" placeholder="0" class="w-full p-2 bg-white rounded-lg text-sm font-mono">
+                        </div>
+                    </div>
+
+                    <!-- Flight Fields -->
+                    <div id="field-flight" class="hidden grid grid-cols-2 gap-3 bg-teal-50/70 p-3 rounded-xl border border-teal-100">
+                        <div>
+                            <label class="text-xs font-bold text-teal-600 ml-1">航班代號</label>
+                            <input type="text" id="itin-flight" placeholder="BR106" class="w-full mt-1 p-2 bg-white border border-teal-100 rounded-xl text-sm font-mono uppercase">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-teal-600 ml-1">航廈</label>
+                            <input type="text" id="itin-terminal" placeholder="Intl / T2" class="w-full mt-1 p-2 bg-white border border-teal-100 rounded-xl text-sm">
+                        </div>
+                    </div>
+
+                    <!-- Hotel Fields -->
+                    <div id="field-hotel" class="hidden grid grid-cols-2 gap-3 bg-purple-50/70 p-3 rounded-xl border border-purple-100">
+                        <div>
+                            <label class="text-xs font-bold text-purple-600 ml-1">Check-in</label>
+                            <input type="time" id="itin-checkin" class="w-full mt-1 p-2 bg-white border border-purple-100 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-purple-600 ml-1">Booking ID</label>
+                            <input type="text" id="itin-booking" class="w-full mt-1 p-2 bg-white border border-purple-100 rounded-xl text-sm font-mono">
+                        </div>
+                    </div>
+
+                    <!-- Map Code Section (For Spot/Food/Hotel) -->
+                    <div id="field-map" class="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                        <label class="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-1 block">Location Info</label>
                         <div class="flex gap-2">
                             <div class="flex-1 relative">
                                 <i class="fas fa-map-pin absolute left-3 top-3.5 text-blue-300"></i>
-                                <input type="text" id="itin-mapcode" placeholder="Map Code (自駕用)" class="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400">
+                                <input type="text" id="itin-mapcode" placeholder="Map Code" class="w-full pl-9 p-3 bg-white border border-slate-200 rounded-xl font-mono text-sm focus:outline-none focus:border-blue-400">
                             </div>
                             <button type="button" onclick="searchMapCode()" class="w-12 bg-blue-600 text-white rounded-xl shadow-md active:scale-95 transition-transform flex items-center justify-center">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
                         <input type="url" id="itin-url" placeholder="Google Maps 連結" class="w-full mt-2 p-2 bg-transparent text-xs text-blue-600 underline placeholder-blue-300 border-none focus:ring-0">
-                    </div>
-
-                    <!-- Special Fields (Hidden by default) -->
-                    <div id="field-hotel" class="hidden grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs font-bold text-purple-500 ml-1">Check-in</label>
-                            <input type="time" id="itin-checkin" class="w-full mt-1 p-2 bg-purple-50 border border-purple-100 rounded-xl text-sm">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-purple-500 ml-1">Booking ID</label>
-                            <input type="text" id="itin-booking" class="w-full mt-1 p-2 bg-purple-50 border border-purple-100 rounded-xl text-sm font-mono">
-                        </div>
-                    </div>
-
-                    <div id="field-transport" class="hidden grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-xs font-bold text-teal-500 ml-1">航班/車次</label>
-                            <input type="text" id="itin-flight" placeholder="BR106" class="w-full mt-1 p-2 bg-teal-50 border border-teal-100 rounded-xl text-sm font-mono uppercase">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-teal-500 ml-1">航廈/月台</label>
-                            <input type="text" id="itin-terminal" placeholder="T2" class="w-full mt-1 p-2 bg-teal-50 border border-teal-100 rounded-xl text-sm">
-                        </div>
                     </div>
 
                     <!-- Plan B Toggle -->
@@ -305,19 +347,21 @@
         let db, docRef, roomId, appData;
         let currentTabId = 'todo';
 
+        // NOTE: dates added for AI logic
         const CONFIG = {
             tabs: [
                 { id: 'todo', label: '待辦', type: 'todo' },
-                { id: 'd1', label: '12/31', full: 'Day 1 (12/31)', type: 'day' },
-                { id: 'd2', label: '1/1', full: 'Day 2 (1/1)', type: 'day' },
-                { id: 'd3', label: '1/2', full: 'Day 3 (1/2)', type: 'day' },
-                { id: 'd4', label: '1/3', full: 'Day 4 (1/3)', type: 'day' },
-                { id: 'd5', label: '1/4', full: 'Day 5 (1/4)', type: 'day' },
-                { id: 'd6', label: '1/5', full: 'Day 6 (1/5)', type: 'day' },
+                { id: 'd1', label: '12/31', full: 'Day 1 (12/31)', type: 'day', date: '2024-12-31' },
+                { id: 'd2', label: '1/1', full: 'Day 2 (1/1)', type: 'day', date: '2025-01-01' },
+                { id: 'd3', label: '1/2', full: 'Day 3 (1/2)', type: 'day', date: '2025-01-02' },
+                { id: 'd4', label: '1/3', full: 'Day 4 (1/3)', type: 'day', date: '2025-01-03' },
+                { id: 'd5', label: '1/4', full: 'Day 5 (1/4)', type: 'day', date: '2025-01-04' },
+                { id: 'd6', label: '1/5', full: 'Day 6 (1/5)', type: 'day', date: '2025-01-05' },
                 { id: 'money', label: '分帳', type: 'expense' }
             ],
             icons: {
-                transport: { icon: 'fa-plane', color: 'text-teal-600', bg: 'bg-teal-100' },
+                flight: { icon: 'fa-plane-departure', color: 'text-teal-600', bg: 'bg-teal-100' },
+                transport: { icon: 'fa-train-subway', color: 'text-slate-600', bg: 'bg-slate-200' }, // Used inside connector, but def here
                 food: { icon: 'fa-utensils', color: 'text-orange-500', bg: 'bg-orange-100' },
                 spot: { icon: 'fa-camera', color: 'text-blue-500', bg: 'bg-blue-100' },
                 shop: { icon: 'fa-shopping-bag', color: 'text-pink-500', bg: 'bg-pink-100' },
@@ -328,29 +372,14 @@
         const defaultData = {
             checklist: [
                 { id: 1, text: "預約 Cinnamoroll Cafe", done: false },
-                { id: 2, text: "預約租車 (Day 3 取車)", done: false },
-                { id: 3, text: "確認 JR Pass", done: false }
+                { id: 2, text: "預約租車 (Day 3 取車)", done: false }
             ],
             itinerary: [
-                { id: 101, day: 'd1', time: '10:00', category: 'transport', title: '抵達福岡機場', flightNo: 'BR106', terminal: 'Intl', note: '搭地鐵至博多' },
+                { id: 101, day: 'd1', time: '10:00', category: 'flight', title: '抵達福岡機場', flightNo: 'BR106', terminal: 'Intl', note: '搭地鐵至博多' },
                 { id: 102, day: 'd1', time: '14:00', category: 'spot', title: 'BOSS E･ZO', note: '絕景三兄弟' },
                 { id: 103, day: 'd1', time: '19:00', category: 'food', title: '中洲屋台', note: '' },
-                
-                { id: 201, day: 'd2', time: '09:00', category: 'transport', title: '新幹線往熊本', note: '' },
-                { id: 202, day: 'd2', time: '10:00', category: 'spot', title: '熊本城', note: '加藤神社初詣' },
-                
-                { id: 301, day: 'd3', time: '09:00', category: 'transport', title: '博多租車', note: '開始自駕', mapCode: '13 320 523*55' },
-                { id: 302, day: 'd3', time: '10:30', category: 'spot', title: '小倉城', mapCode: '16 465 484*22' },
-                { id: 303, day: 'd3', time: '14:00', category: 'spot', title: '門司港', mapCode: '16 742 660*88' },
-                
-                { id: 401, day: 'd4', time: '09:40', category: 'spot', title: '九州自然動物園', mapCode: '46 636 545*52', note: 'Jungle Bus' },
-                { id: 402, day: 'd4', time: '14:00', category: 'spot', title: '明礬溫泉', mapCode: '46 523 063*55' },
-                
-                { id: 501, day: 'd5', time: '10:00', category: 'spot', title: '海之中道', note: '' },
-                { id: 502, day: 'd5', time: '18:00', category: 'food', title: 'Cinnamoroll Cafe', note: '預約制' },
-                
-                { id: 601, day: 'd6', time: '10:00', category: 'shop', title: 'LaLaport 福岡', note: '鋼彈' },
-                { id: 602, day: 'd6', time: '14:00', category: 'transport', title: '前往機場', note: '' }
+                { id: 201, day: 'd2', time: '09:00', category: 'transport', title: '新幹線移動', stationFrom: '博多', stationTo: '熊本', cost: 5000 },
+                { id: 202, day: 'd2', time: '10:30', category: 'spot', title: '熊本城', note: '加藤神社初詣' },
             ],
             expenses: [],
             settings: { 
@@ -389,6 +418,9 @@
                 renderTabs();
                 renderWeather();
                 window.switchTab('todo');
+                
+                // Start AI loop
+                setInterval(checkAISuggestions, 60000);
 
             } catch (e) { console.error(e); }
         }
@@ -397,21 +429,86 @@
             if (docRef && appData) await updateDoc(docRef, appData);
         }
 
-        // Renderers
+        // --- Renderers ---
+
         function render() {
             const container = document.getElementById('main-content');
             const tab = CONFIG.tabs.find(t => t.id === currentTabId);
             container.innerHTML = `<div class="h-1"></div>`;
             
-            if (tab.type === 'todo') renderTodo(container);
+            if (tab.type === 'todo') {
+                renderAISuggestions(container); // Inject AI block
+                renderTodo(container);
+            }
             else if (tab.type === 'expense') renderExpense(container);
             else renderItinerary(container, tab);
+        }
+
+        // AI Feature
+        function checkAISuggestions() {
+            if (currentTabId === 'todo') render(); // Re-render to update AI block
+        }
+
+        function renderAISuggestions(c) {
+            if (!appData?.itinerary) return;
+
+            const now = new Date();
+            // For demo: you can uncomment below to fake time
+            // const now = new Date('2024-12-31T09:00:00'); 
+
+            let alertHtml = '';
+            
+            // Look ahead in all days
+            appData.itinerary.forEach(item => {
+                const tabConfig = CONFIG.tabs.find(t => t.id === item.day);
+                if (!tabConfig || !tabConfig.date) return;
+
+                const itemDate = new Date(`${tabConfig.date}T${item.time}`);
+                const diffMs = itemDate - now;
+                const diffHrs = diffMs / (1000 * 60 * 60);
+
+                // Logic Rules
+                if (diffHrs > 0 && diffHrs < 3 && item.category === 'flight') {
+                    alertHtml = `
+                        <div class="mb-4 bg-teal-50 border border-teal-200 p-4 rounded-xl ai-alert shadow-sm flex gap-3 items-start">
+                            <div class="text-2xl">🤖</div>
+                            <div>
+                                <h4 class="font-bold text-teal-800 text-sm">即將登機提醒</h4>
+                                <p class="text-xs text-teal-600 mt-1">還有 ${Math.ceil(diffHrs*60)} 分鐘。請確認護照與前往 <b>${item.terminal || '航廈'}</b>。</p>
+                                <div class="mt-2 bg-white inline-block px-2 py-1 rounded border border-teal-100 font-mono text-xs font-bold">${item.flightNo || 'Flight'}</div>
+                            </div>
+                        </div>`;
+                }
+                else if (diffHrs > 0 && diffHrs < 2 && item.category === 'hotel') {
+                    alertHtml = `
+                        <div class="mb-4 bg-purple-50 border border-purple-200 p-4 rounded-xl ai-alert shadow-sm flex gap-3 items-start">
+                            <div class="text-2xl">🤖</div>
+                            <div>
+                                <h4 class="font-bold text-purple-800 text-sm">即將入住飯店</h4>
+                                <p class="text-xs text-purple-600 mt-1">請準備好 Booking ID 以供查驗。</p>
+                                <div class="mt-2 font-mono text-lg font-bold text-purple-700 select-all">${item.bookingId || 'No ID'}</div>
+                            </div>
+                        </div>`;
+                }
+                else if (diffHrs > 0 && diffHrs < 1 && item.category === 'transport') {
+                    alertHtml = `
+                        <div class="mb-4 bg-slate-100 border border-slate-300 p-4 rounded-xl shadow-sm flex gap-3 items-start">
+                            <div class="text-2xl">🤖</div>
+                            <div>
+                                <h4 class="font-bold text-slate-700 text-sm">行程提醒</h4>
+                                <p class="text-xs text-slate-600 mt-1">準備前往 <b>${item.title}</b> (${item.stationFrom || '出發地'} → ${item.stationTo || '目的地'})。</p>
+                            </div>
+                        </div>`;
+                }
+            });
+
+            if (alertHtml) c.innerHTML += alertHtml;
         }
 
         function renderTodo(c) {
             const list = document.createElement('div');
             list.className = 'space-y-2';
-            appData.checklist.forEach(item => {
+            (appData.checklist||[]).forEach(item => {
                 const row = document.createElement('div');
                 row.className = 'glass-card p-4 rounded-xl flex items-center gap-3 animate-fade-in';
                 row.innerHTML = `
@@ -439,16 +536,44 @@
                 return;
             }
 
-            items.forEach(item => {
+            items.forEach((item, index) => {
+                // SPECIAL RENDER FOR TRANSPORT (CONNECTOR STYLE)
+                if (item.category === 'transport') {
+                    const el = document.createElement('div');
+                    el.className = 'connector-line flex items-center gap-3 py-3 px-4 mx-1 rounded-lg mb-3 animate-fade-in cursor-pointer hover:bg-slate-200/50 transition';
+                    el.onclick = () => window.openItineraryModal(item.id);
+                    el.innerHTML = `
+                        <div class="flex flex-col items-center w-12 flex-none">
+                            <span class="text-xs font-mono font-bold text-slate-500">${item.time}</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs flex-none z-10 border border-white">
+                            <i class="fas fa-train"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 text-sm font-bold text-slate-700 truncate">
+                                <span>${item.stationFrom || item.title || '出發'}</span>
+                                <i class="fas fa-arrow-right text-xs text-slate-400"></i>
+                                <span>${item.stationTo || '到達'}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500 truncate">${item.title !== item.stationFrom ? item.title : '移動中'}</div>
+                        </div>
+                        ${item.cost ? `<div class="text-xs font-mono font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">¥${item.cost}</div>` : ''}
+                    `;
+                    c.appendChild(el);
+                    return;
+                }
+
+                // STANDARD CARD RENDER
                 const style = CONFIG.icons[item.category] || CONFIG.icons.spot;
                 const card = document.createElement('div');
-                card.className = 'glass-card p-4 rounded-2xl mb-3 relative animate-fade-in active:scale-[0.99] transition-transform';
+                card.className = 'glass-card p-4 rounded-2xl mb-3 relative animate-fade-in active:scale-[0.99] transition-transform z-10';
                 card.onclick = (e) => { if (!e.target.closest('button') && !e.target.closest('a')) window.openItineraryModal(item.id); };
 
                 let details = '';
                 if (item.category === 'hotel' && item.checkInTime) details += `<span class="mr-2">🕒 CI: ${item.checkInTime}</span>`;
                 if (item.category === 'hotel' && item.bookingId) details += `<span>🆔: ${item.bookingId}</span>`;
-                if (item.category === 'transport' && item.flightNo) details += `<span class="mr-2">✈️ ${item.flightNo}</span>`;
+                if (item.category === 'flight' && item.flightNo) details += `<span class="mr-2">✈️ ${item.flightNo}</span>`;
+                if (item.category === 'flight' && item.terminal) details += `<span>🚪 ${item.terminal}</span>`;
                 
                 let mapCodeBtn = '';
                 if (item.mapCode) {
@@ -493,7 +618,6 @@
         }
 
         function renderExpense(c) {
-            // Calculation logic identical to previous, just visual update
             let total = 0;
             const bal = {};
             (appData.settings.companions||[]).forEach(p => bal[p] = 0);
@@ -505,7 +629,6 @@
                 appData.settings.companions.forEach(p => bal[p] -= share);
             });
 
-            // Settlement
             let settlements = [], d = [], cr = [];
             for (const [p, v] of Object.entries(bal)) {
                 if (v < -1) d.push({p, v});
@@ -532,7 +655,6 @@
                 </div>`;
             c.appendChild(card);
 
-            // List
             const list = document.createElement('div');
             list.className = 'space-y-2';
             (appData.expenses||[]).slice().reverse().forEach(e => {
@@ -566,7 +688,6 @@
             currentTabId = id;
             renderTabs();
             render();
-            // FAB logic
             const fab = document.getElementById('fab-btn');
             if (id === 'money') { fab.classList.replace('bg-blue-600/90', 'bg-slate-800/90'); }
             else { fab.classList.replace('bg-slate-800/90', 'bg-blue-600/90'); }
@@ -575,28 +696,21 @@
         // Weather
         async function renderWeather() {
             try {
-                // Fetch Fukuoka Hourly
                 const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5904&longitude=130.4017&hourly=temperature_2m,weathercode&timezone=Asia%2FTokyo&forecast_days=2');
                 const data = await res.json();
-                
-                // Get next 24 hours
                 const now = new Date();
                 const currentHour = now.getHours();
                 const container = document.getElementById('weather-scroll');
                 container.innerHTML = '';
-                
-                // Show widget
                 document.getElementById('weather-widget').classList.remove('hidden');
                 document.getElementById('weather-updated').innerText = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
 
                 for (let i = 0; i < 24; i++) {
                     const idx = data.hourly.time.findIndex(t => new Date(t).getHours() === currentHour) + i;
                     if (idx >= data.hourly.time.length) break;
-
                     const temp = Math.round(data.hourly.temperature_2m[idx]);
                     const code = data.hourly.weathercode[idx];
                     const time = new Date(data.hourly.time[idx]).getHours();
-                    
                     let icon = 'fa-sun text-orange-400';
                     if (code > 3) icon = 'fa-cloud text-slate-400';
                     if (code > 50) icon = 'fa-umbrella text-blue-400';
@@ -627,11 +741,18 @@
             document.getElementById('itin-url').value = item?.url || '';
             document.getElementById('itin-note').value = item?.note || '';
             
-            // Special Fields
-            document.getElementById('itin-checkin').value = item?.checkInTime || '';
-            document.getElementById('itin-booking').value = item?.bookingId || '';
+            // Flight
             document.getElementById('itin-flight').value = item?.flightNo || '';
             document.getElementById('itin-terminal').value = item?.terminal || '';
+            
+            // Transport
+            document.getElementById('itin-from').value = item?.stationFrom || '';
+            document.getElementById('itin-to').value = item?.stationTo || '';
+            document.getElementById('itin-cost').value = item?.cost || '';
+
+            // Hotel
+            document.getElementById('itin-checkin').value = item?.checkInTime || '';
+            document.getElementById('itin-booking').value = item?.bookingId || '';
 
             // Plan B
             document.getElementById('itin-hasPlanB').checked = !!item?.planB;
@@ -647,8 +768,24 @@
 
         window.toggleCategoryFields = () => {
             const cat = document.getElementById('itin-category').value;
-            document.getElementById('field-hotel').classList.toggle('hidden', cat !== 'hotel');
-            document.getElementById('field-transport').classList.toggle('hidden', cat !== 'transport');
+            
+            // Reset all
+            document.getElementById('field-hotel').classList.add('hidden');
+            document.getElementById('field-flight').classList.add('hidden');
+            document.getElementById('field-transport').classList.add('hidden');
+            document.getElementById('field-map').classList.remove('hidden');
+            document.getElementById('lbl-title').innerText = "標題 / 名稱";
+
+            if (cat === 'hotel') {
+                document.getElementById('field-hotel').classList.remove('hidden');
+            } else if (cat === 'flight') {
+                document.getElementById('field-flight').classList.remove('hidden');
+                document.getElementById('field-map').classList.add('hidden'); // Flight rarely needs map code
+            } else if (cat === 'transport') {
+                document.getElementById('field-transport').classList.remove('hidden');
+                document.getElementById('field-map').classList.add('hidden');
+                document.getElementById('lbl-title').innerText = "說明 (選填)";
+            }
         };
 
         window.togglePlanB = () => {
@@ -658,35 +795,41 @@
 
         window.searchMapCode = () => {
             const title = document.getElementById('itin-title').value;
-            const code = document.getElementById('itin-mapcode').value;
-            if (code) {
-                // If user entered mapcode, maybe copy it? or just show alert. 
-                // But request says search button should open google search.
-                window.open(`https://www.google.com/search?q=${encodeURIComponent(title + ' MapCode')}`, '_blank');
-            } else {
-                window.open(`https://www.google.com/search?q=${encodeURIComponent(title + ' MapCode')}`, '_blank');
-            }
+            window.open(`https://www.google.com/search?q=${encodeURIComponent(title + ' MapCode')}`, '_blank');
         };
 
         window.saveItinerary = () => {
             const id = document.getElementById('itin-id').value;
-            const title = document.getElementById('itin-title').value;
-            if (!title) return;
+            const category = document.getElementById('itin-category').value;
+            let title = document.getElementById('itin-title').value;
+            
+            // For transport, if title is empty, generate from stations
+            if (category === 'transport' && !title) {
+                const from = document.getElementById('itin-from').value;
+                const to = document.getElementById('itin-to').value;
+                if (from && to) title = `${from} → ${to}`;
+                else title = '交通移動';
+            }
+
+            if (!title) return alert('請輸入標題');
 
             const newItem = {
                 id: id ? parseInt(id) : Date.now(),
                 day: currentTabId,
                 time: document.getElementById('itin-time').value,
-                category: document.getElementById('itin-category').value,
+                category,
                 title,
                 mapCode: document.getElementById('itin-mapcode').value,
                 url: document.getElementById('itin-url').value,
                 note: document.getElementById('itin-note').value,
-                // Special
+                // Fields
                 checkInTime: document.getElementById('itin-checkin').value,
                 bookingId: document.getElementById('itin-booking').value,
                 flightNo: document.getElementById('itin-flight').value,
                 terminal: document.getElementById('itin-terminal').value,
+                stationFrom: document.getElementById('itin-from').value,
+                stationTo: document.getElementById('itin-to').value,
+                cost: document.getElementById('itin-cost').value,
                 // Plan B
                 planB: document.getElementById('itin-hasPlanB').checked,
                 planBTitle: document.getElementById('itin-planb-title').value,
@@ -735,7 +878,6 @@
         window.handleFab = () => {
             if(currentTabId==='todo') openModal('modal-todo');
             else if(currentTabId==='money') {
-                // Populate modal
                 document.getElementById('exp-day').innerHTML = CONFIG.tabs.filter(t=>t.type==='day').map(d=>`<option value="${d.id}">${d.full}</option>`).join('');
                 document.getElementById('exp-payer').innerHTML = appData.settings.companions.map(p=>`<option value="${p}">${p}</option>`).join('');
                 openModal('modal-expense');
